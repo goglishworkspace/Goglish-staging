@@ -1,21 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { AvatarImage } from "@/components/shared/AvatarImage";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AvatarImage } from "@/components/shared/AvatarImage";
-import { cn } from "@/lib/utils";
 import { useHonorBoard } from "@/lib/api/queries/honor-board";
-
-const RANK_STYLES = [
-  "bg-primary text-secondary",
-  "bg-secondary text-brand-accent",
-  "bg-muted text-foreground",
-];
+import { HonorBoardPodium } from "@/components/landing/HonorBoardPodium";
 
 export default function HonorBoardPage() {
   const { data: entries, isLoading, isError } = useHonorBoard(20);
+  const podiumEntries = entries?.slice(0, 3) ?? [];
+  const restEntries = entries?.slice(3) ?? [];
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
@@ -24,41 +19,52 @@ export default function HonorBoardPage() {
         أعلى الطلاب في مجموع كل المواد بإجمالي نقاط الخبرة
       </p>
 
-      <div className="mt-10 flex w-full flex-col gap-4">
-        {isLoading &&
-          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-
-        {!isLoading && (isError || !entries?.length) && (
-          <p className="text-center text-small text-muted-foreground">لوحة الشرف غير متاحة حالياً.</p>
-        )}
-
-        {!isLoading &&
-          !isError &&
-          entries?.map((entry, i) => (
-            <Card key={entry.user_id} className="w-full">
-              <CardContent className="flex items-center gap-4 p-4">
-                <div
-                  className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-full text-h3",
-                    RANK_STYLES[i] ?? "bg-muted text-foreground",
-                  )}
-                >
-                  {i === 0 ? <Trophy className="size-5" /> : entry.rank}
-                </div>
-                <AvatarImage
-                  src={entry.avatar_url}
-                  initials={(entry.name ?? "ط").charAt(0)}
-                  alt={entry.name ?? "طالب"}
-                  size={40}
-                />
-                <div className="min-w-0 flex-1 text-start">
-                  <p className="truncate font-semibold text-foreground">{entry.name ?? "طالب"}</p>
-                  <p className="text-small text-muted-foreground">{entry.xp.toLocaleString("ar-EG")} نقطة خبرة</p>
-                </div>
-              </CardContent>
-            </Card>
+      {isLoading && (
+        <div className="mt-10 flex w-full flex-col gap-4">
+          <Skeleton className="h-48 w-full rounded-2xl" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
-      </div>
+        </div>
+      )}
+
+      {!isLoading && (isError || !entries?.length) && (
+        <p className="mt-10 text-center text-small text-muted-foreground">لوحة الشرف غير متاحة حالياً.</p>
+      )}
+
+      {!isLoading && !isError && !!entries?.length && (
+        <>
+          <div className="mt-10 w-full rounded-2xl border border-border bg-gradient-to-b from-muted/50 to-transparent px-6 py-10">
+            <HonorBoardPodium entries={podiumEntries} />
+          </div>
+
+          {!!restEntries.length && (
+            <div className="mt-6 flex w-full flex-col gap-2">
+              {restEntries.map((entry) => (
+                <Card key={entry.user_id} className="w-full">
+                  <CardContent className="flex items-center gap-4 p-3">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-small font-semibold text-muted-foreground">
+                      {entry.rank}
+                    </div>
+                    <AvatarImage
+                      src={entry.avatar_url}
+                      initials={(entry.name ?? "ط").charAt(0)}
+                      alt={entry.name ?? "طالب"}
+                      size={36}
+                    />
+                    <div className="min-w-0 flex-1 text-start">
+                      <p className="truncate font-medium text-foreground">{entry.name ?? "طالب"}</p>
+                    </div>
+                    <p className="shrink-0 text-small font-semibold text-muted-foreground">
+                      {entry.xp.toLocaleString("ar-EG")} XP
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       <p className="mt-8 text-center text-small text-muted-foreground">
         عايز تشوف ترتيبك في كل مادة على حدة؟{" "}
