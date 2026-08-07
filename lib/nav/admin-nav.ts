@@ -1,0 +1,31 @@
+import {
+  LayoutDashboard,
+  Users,
+  BookOpen,
+  GraduationCap,
+  MessageSquareWarning,
+  Wallet,
+  Ticket,
+  Image as ImageIcon,
+  CalendarDays,
+  Settings,
+  ScrollText,
+  DatabaseBackup,
+  ShieldCheck,
+} from "lucide-react";
+
+export const ADMIN_NAV_ITEMS = [
+  { href: "/admin/dashboard", label: "نظرة عامة", icon: LayoutDashboard },
+  { href: "/admin/users", label: "المستخدمون", icon: Users },
+  { href: "/admin/subjects", label: "المواد الدراسية", icon: GraduationCap },
+  { href: "/admin/courses", label: "الكورسات والموافقات", icon: BookOpen },
+  { href: "/admin/comments", label: "مراجعة التعليقات", icon: MessageSquareWarning },
+  { href: "/admin/payments", label: "المدفوعات والتقارير المالية", icon: Wallet },
+  { href: "/admin/coupons", label: "الكوبونات", icon: Ticket },
+  { href: "/admin/media", label: "مكتبة الوسائط", icon: ImageIcon },
+  { href: "/admin/calendar", label: "التقويم الدراسي", icon: CalendarDays },
+  { href: "/admin/settings", label: "الإعدادات", icon: Settings },
+  { href: "/admin/audit-logs", label: "سجل النشاطات", icon: ScrollText },
+  { href: "/admin/backups", label: "النسخ الاحتياطي", icon: DatabaseBackup },
+  { href: "/admin/roles", label: "الأدوار والصلاحيات", icon: ShieldCheck },
+];
