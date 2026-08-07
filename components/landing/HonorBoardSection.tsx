@@ -24,8 +24,8 @@ export function HonorBoardSection() {
         </div>
         <p className="mt-2 text-small text-muted-foreground">أعلى 3 طلاب في مجموع كل المواد</p>
 
-        <div className="mt-8 w-full rounded-2xl border border-border bg-gradient-to-b from-muted/50 to-transparent px-6 py-10">
-          {isLoading && <Skeleton className="h-40 w-full" />}
+        <div className="mt-8 w-full">
+          {isLoading && <Skeleton className="h-72 w-full rounded-3xl" />}
 
           {!isLoading && (isError || !entries?.length) && (
             <p className="text-center text-small text-muted-foreground">لوحة الشرف غير متاحة حالياً.</p>

@@ -13,13 +13,12 @@ export async function createPricedCourse(
   return setup;
 }
 
-type StubProvider = "paymob" | "vodafone_cash" | "instapay" | "kasher";
+type StubProvider = "paymob" | "vodafone_cash" | "instapay";
 
 const SECRET_ENV_VAR: Record<StubProvider, string> = {
   paymob: "PAYMOB_HMAC_SECRET",
   vodafone_cash: "VODAFONE_CASH_HMAC_SECRET",
   instapay: "INSTAPAY_HMAC_SECRET",
-  kasher: "KASHER_HMAC_SECRET",
 };
 
 /** Builds a correctly-signed event and posts it straight to

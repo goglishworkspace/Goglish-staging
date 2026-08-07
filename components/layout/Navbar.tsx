@@ -22,7 +22,6 @@ const NAV_LINKS = [
   { href: "/leaderboard", label: "الصدارة" },
   { href: "/achievements", label: "الإنجازات" },
   { href: "/honor-board", label: "لوحة الشرف" },
-  { href: "#faq", label: "الأسئلة الشائعة" },
 ];
 
 function ThemeToggle() {

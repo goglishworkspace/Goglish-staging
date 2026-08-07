@@ -256,6 +256,24 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
     <div ref={wrapperRef} className="group relative aspect-video w-full overflow-hidden rounded-xl bg-black">
       <div ref={containerRef} className="absolute inset-0 h-full w-full" />
 
+      {/* controls:0 only hides YouTube's own bottom control bar - it does
+          NOT stop the title/channel link YouTube overlays on pause, the
+          end-screen "more videos" cards near the end of playback, or the
+          corner YouTube logo, all of which stay live and clickable inside
+          the iframe. Since every control a viewer needs already exists in
+          our own bar below, this layer's only job is to sit between the
+          mouse and the iframe so none of that native, click-through-to-
+          YouTube UI is ever reachable - clicking it just toggles play,
+          same as clicking a normal video would. */}
+      <button
+        type="button"
+        onClick={togglePlay}
+        disabled={!ready}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full cursor-pointer"
+      />
+
       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         <input
           type="range"

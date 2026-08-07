@@ -6,23 +6,33 @@ export function Footer() {
       <div className="w-full border-t border-border px-4 pt-12 pb-6 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl flex-col items-center gap-4">
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <Link href="/" className="hover:text-foreground">
+            <Link href="/privacy" className="hover:text-foreground">
               سياسة الخصوصية
             </Link>
-            <Link href="/" className="hover:text-foreground">
+            <Link href="/terms" className="hover:text-foreground">
               الشروط والأحكام
-            </Link>
-            <Link href="#faq" className="hover:text-foreground">
-              الأسئلة الشائعة
             </Link>
           </div>
 
           <div className="flex items-center justify-center gap-4">
-            {SOCIAL_LINKS.map(({ name, Icon }) => (
-              <span key={name} aria-label={name} className="text-muted-foreground hover:text-foreground">
-                <Icon className="size-[18px]" />
-              </span>
-            ))}
+            {SOCIAL_LINKS.map(({ name, Icon, href }) =>
+              href ? (
+                <a
+                  key={name}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={name}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Icon className="size-[18px]" />
+                </a>
+              ) : (
+                <span key={name} aria-label={name} className="text-muted-foreground hover:text-foreground">
+                  <Icon className="size-[18px]" />
+                </span>
+              ),
+            )}
           </div>
 
           <p className="text-center text-xs text-muted-foreground">
@@ -38,22 +48,6 @@ function YoutubeIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
       <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8ZM9.6 15.5V8.5l6.4 3.5-6.4 3.5Z" />
-    </svg>
-  );
-}
-
-function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-      <path d="M20.5 2h-17A1.5 1.5 0 0 0 2 3.5v17A1.5 1.5 0 0 0 3.5 22h17a1.5 1.5 0 0 0 1.5-1.5v-17A1.5 1.5 0 0 0 20.5 2ZM8 19H5v-9h3Zm-1.5-10.25A1.75 1.75 0 1 1 8.25 7 1.75 1.75 0 0 1 6.5 8.75ZM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0 0 13 14.19a.66.66 0 0 0 0 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 0 1 2.7-1.4c1.55 0 3.36.86 3.36 3.66Z" />
-    </svg>
-  );
-}
-
-function XIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-      <path d="M18.42 2H21l-6.55 7.49L22.24 22h-6.62l-5.18-6.78L4.5 22H1.9l7.03-8.03L1 2h6.78l4.68 6.2Zm-1.16 18h1.83L6.86 3.9H4.9Z" />
     </svg>
   );
 }
@@ -83,10 +77,8 @@ function InstagramIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 const SOCIAL_LINKS = [
-  { name: "يوتيوب", Icon: YoutubeIcon },
-  { name: "لينكدإن", Icon: LinkedinIcon },
-  { name: "تويتر", Icon: XIcon },
-  { name: "تيك توك", Icon: TiktokIcon },
-  { name: "فيسبوك", Icon: FacebookIcon },
-  { name: "انستجرام", Icon: InstagramIcon },
+  { name: "يوتيوب", Icon: YoutubeIcon, href: "https://www.youtube.com/@goglish-tv" },
+  { name: "تيك توك", Icon: TiktokIcon, href: "https://www.tiktok.com/@goglish0" },
+  { name: "فيسبوك", Icon: FacebookIcon, href: "https://www.facebook.com/profile.php?id=61591573683214" },
+  { name: "انستجرام", Icon: InstagramIcon, href: "https://www.instagram.com/goglish_official" },
 ];

@@ -173,6 +173,28 @@ body {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Honor board podium (components/landing/HonorBoardPodium.tsx) - a single
+   gold sweep of light across the champion's step, once every few seconds. */
+@keyframes honor-shimmer {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-12deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .honor-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: -20% -60%;
+    background: linear-gradient(75deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
+    animation: honor-shimmer 3.5s ease-in-out infinite;
+    animation-delay: 1s;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

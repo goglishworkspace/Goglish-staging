@@ -21,7 +21,7 @@ export default function HonorBoardPage() {
 
       {isLoading && (
         <div className="mt-10 flex w-full flex-col gap-4">
-          <Skeleton className="h-48 w-full rounded-2xl" />
+          <Skeleton className="h-72 w-full rounded-3xl" />
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
@@ -34,7 +34,7 @@ export default function HonorBoardPage() {
 
       {!isLoading && !isError && !!entries?.length && (
         <>
-          <div className="mt-10 w-full rounded-2xl border border-border bg-gradient-to-b from-muted/50 to-transparent px-6 py-10">
+          <div className="mt-10 w-full">
             <HonorBoardPodium entries={podiumEntries} />
           </div>
 
