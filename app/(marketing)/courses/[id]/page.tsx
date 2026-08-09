@@ -2,7 +2,6 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Star, PlayCircle, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,6 @@ import { useProfile } from "@/lib/api/queries/profile";
 
 export default function CoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const router = useRouter();
   const { data: course, isLoading, isError } = useCourse(id);
   const [enrolling, setEnrolling] = useState(false);
   const [couponCode, setCouponCode] = useState("");
@@ -76,7 +74,14 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
         return;
       }
 
-      router.push(payment.data.checkout_url);
+      // A real payment provider redirect leaves the SPA entirely, so this
+      // never mattered there - but a free course (or one discounted to zero
+      // by a coupon) never leaves this page at all; router.push() to the
+      // same route with just a new query string doesn't refetch useCourse()'s
+      // React Query cache, so the page kept showing "اشترك الآن" as if
+      // nothing happened even though the purchase succeeded. A full
+      // navigation forces everything (access state included) to load fresh.
+      window.location.href = payment.data.checkout_url;
     } catch {
       toast.error("حصل خطأ غير متوقع، حاول تاني");
     } finally {
@@ -119,6 +124,19 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1">
               <h1 className="text-h2 text-secondary dark:text-white">{course.title}</h1>
+              {!!course.teachers.length && (
+                <p className="mt-1 text-small text-muted-foreground">
+                  المدرّس:{" "}
+                  {course.teachers.map((teacher, i) => (
+                    <span key={teacher.id}>
+                      {i > 0 && "، "}
+                      <Link href={`/teachers/${teacher.id}`} className="font-medium text-foreground underline">
+                        {teacher.display_name ?? "مدرّس"}
+                      </Link>
+                    </span>
+                  ))}
+                </p>
+              )}
               {course.description && (
                 <p className="mt-2 text-body text-muted-foreground">{course.description}</p>
               )}

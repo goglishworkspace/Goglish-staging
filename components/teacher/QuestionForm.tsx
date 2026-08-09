@@ -27,6 +27,7 @@ export function QuestionForm({
 }) {
   const [type, setType] = useState<"mcq" | "true_false">("mcq");
   const [prompt, setPrompt] = useState("");
+  const [hint, setHint] = useState("");
   const [options, setOptions] = useState([
     { content: "", is_correct: true },
     { content: "", is_correct: false },
@@ -48,12 +49,20 @@ export function QuestionForm({
     e.preventDefault();
     if (!prompt.trim()) return;
 
+    const trimmedHint = hint.trim() || undefined;
+
     if (type === "mcq") {
       const cleanOptions = options.filter((o) => o.content.trim());
       if (cleanOptions.length < 2 || !cleanOptions.some((o) => o.is_correct)) return;
-      onSubmit({ type: "mcq", prompt: prompt.trim(), order_index: nextOrder, options: cleanOptions });
+      onSubmit({ type: "mcq", prompt: prompt.trim(), order_index: nextOrder, hint: trimmedHint, options: cleanOptions });
     } else {
-      onSubmit({ type: "true_false", prompt: prompt.trim(), order_index: nextOrder, correct_answer: correctAnswer });
+      onSubmit({
+        type: "true_false",
+        prompt: prompt.trim(),
+        order_index: nextOrder,
+        hint: trimmedHint,
+        correct_answer: correctAnswer,
+      });
     }
   };
 
@@ -70,6 +79,17 @@ export function QuestionForm({
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="question-prompt">نص السؤال</Label>
         <Textarea id="question-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="question-hint">تلميح (اختياري)</Label>
+        <Textarea
+          id="question-hint"
+          value={hint}
+          onChange={(e) => setHint(e.target.value)}
+          rows={2}
+          placeholder="هيظهر للطالب بس لو جاوب غلط"
+        />
       </div>
 
       {type === "mcq" ? (

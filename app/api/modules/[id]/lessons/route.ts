@@ -6,7 +6,7 @@ import { createLessonSchema } from "@/lib/validation/lesson.schemas";
 
 const LESSON_LIST_COLUMNS =
   "id, module_id, title, description, order_index, teacher_id, is_preview, status, submitted_at, rejection_reason, " +
-  "youtube_preview_video_id, bunny_video_duration_seconds, created_at, updated_at";
+  "youtube_preview_video_id, bunny_video_duration_seconds, deletion_requested_at, created_at, updated_at";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

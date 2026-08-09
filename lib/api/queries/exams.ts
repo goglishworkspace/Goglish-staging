@@ -8,6 +8,7 @@ export type Exam = {
   course_id: string;
   title: string;
   status: "draft" | "published";
+  deletion_requested_at?: string | null;
 };
 
 export function useCourseExams(courseId: string) {
@@ -25,7 +26,7 @@ export function useCourseExams(courseId: string) {
 export function useCreateExam(courseId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { title: string }) => {
+    mutationFn: async (input: { title: string; time_limit_seconds?: number }) => {
       const { data } = await api.post<ApiSuccess<Exam>>("/api/exams", { course_id: courseId, ...input });
       return data.data;
     },
@@ -72,6 +73,28 @@ export function useCreateExamQuestion(examId: string) {
   return useMutation({
     mutationFn: async (input: QuestionInput) => {
       const { data } = await api.post<ApiSuccess<Question>>(`/api/exams/${examId}/questions`, input);
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["exam-questions", examId] }),
+  });
+}
+
+export function useRequestExamDeletion(courseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (examId: string) => {
+      const { data } = await api.post<ApiSuccess<Exam>>(`/api/exams/${examId}/request-deletion`);
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course-exams", courseId] }),
+  });
+}
+
+export function useRequestExamQuestionDeletion(examId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (questionId: string) => {
+      const { data } = await api.post<ApiSuccess<Question>>(`/api/questions/${questionId}/request-deletion`);
       return data.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["exam-questions", examId] }),

@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import type { ApiSuccess } from "@/lib/api/response";
 
+export type CourseTeacher = { id: string; display_name: string | null };
+
 export type Course = {
   id: string;
   subject_id: string;
@@ -16,6 +18,7 @@ export type Course = {
   currency: string;
   created_at: string;
   trailer_youtube_id: string | null;
+  teachers: CourseTeacher[];
 };
 
 export type CourseDetail = Course & { has_access: boolean };

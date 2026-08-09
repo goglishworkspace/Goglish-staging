@@ -21,6 +21,13 @@ export type RateLimitRule = {
 
 export const RATE_LIMIT_RULES: RateLimitRule[] = [
   { pathPrefix: "/api/auth/login", key: "login", maxCount: 5, windowSeconds: 15 * 60, failClosed: true },
+  // More specific than the /api/auth/register rule below, so it must come
+  // first - resolveRateLimitRule() takes the first prefix match. This fires
+  // once per signUp() call (new attempt or retry alike, see
+  // app/(auth)/register/page.tsx), so it needs a budget close to how often
+  // people actually retry registration, not the stricter 3/hour meant to
+  // bound distinct full signups on /api/auth/register itself.
+  { pathPrefix: "/api/auth/register/sync-metadata", key: "register-sync", maxCount: 20, windowSeconds: 60 * 60 },
   { pathPrefix: "/api/auth/register", key: "register", maxCount: 3, windowSeconds: 60 * 60 },
   { pathPrefix: "/api/auth/forgot-password", key: "forgot-password", maxCount: 3, windowSeconds: 60 * 60 },
   { pathPrefix: "/api/auth/verify-phone/request", key: "phone-otp-request", maxCount: 5, windowSeconds: 60 * 60 },

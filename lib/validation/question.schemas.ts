@@ -4,6 +4,9 @@ const base = {
   prompt: z.string().trim().min(1, "نص السؤال مطلوب"),
   points: z.number().positive().optional(),
   order_index: z.number().int().min(0),
+  // Shown to the student only if they get the question wrong (see the
+  // per-question check route) - never sent down with the question itself.
+  hint: z.string().trim().optional(),
 };
 
 const mcqSchema = z.object({

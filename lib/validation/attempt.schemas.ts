@@ -28,3 +28,9 @@ export const leaveAttemptSchema = z.object({
   responses: z.array(responseItemSchema).default([]),
 });
 export type LeaveAttemptInput = z.infer<typeof leaveAttemptSchema>;
+
+// Per-question instant-feedback check (quiz practice mode) - one question's
+// response at a time, scored on demand without persisting to
+// student_quiz_responses (the final bulk submit still does that).
+export const checkAnswerSchema = z.object({ response: responseValueSchema });
+export type CheckAnswerInput = z.infer<typeof checkAnswerSchema>;

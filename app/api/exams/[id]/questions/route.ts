@@ -14,8 +14,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     p_exam_id: id,
   });
 
+  // Authoring view (teacher/admin) sees the answer key and hint; everyone
+  // else only sees option content, never is_correct/order_index/match_group/
+  // hint (the hint is only ever revealed after a wrong answer, via the
+  // per-question check route - never handed out upfront).
   const columns = canManage
-    ? "id, type, prompt, points, order_index, answers(id, content, is_correct, order_index, side, match_group)"
+    ? "id, type, prompt, points, order_index, hint, deletion_requested_at, answers(id, content, is_correct, order_index, side, match_group)"
     : "id, type, prompt, points, order_index, answers(id, content, side)";
 
   const { data, error } = await supabase
@@ -51,6 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       prompt: parsed.data.prompt,
       points: parsed.data.points ?? 1,
       order_index: parsed.data.order_index,
+      hint: parsed.data.hint || null,
     })
     .select()
     .single();

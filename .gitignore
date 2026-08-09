@@ -51,8 +51,8 @@ next-env.d.ts
 # Claude local settings
 .claude/settings.local.json
 
-# Database backups
-*.sql
+# Database backups (root-level only - supabase/migrations/*.sql must stay tracked)
+/backup-*.sql
 
 # IDE
 .vscode/

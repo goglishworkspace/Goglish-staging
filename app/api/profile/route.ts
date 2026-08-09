@@ -6,7 +6,7 @@ import { getAvatarSignedUrl } from "@/lib/services/avatar.service";
 import { decryptNationalId } from "@/lib/services/national-id.service";
 import { updatePersonalInfoSchema } from "@/lib/validation/profile.schemas";
 
-const PERSONAL_INFO_COOLDOWN_DAYS = 30;
+const PERSONAL_INFO_COOLDOWN_DAYS = 7;
 
 export async function GET() {
   const supabase = await createClient();
@@ -40,7 +40,7 @@ export async function GET() {
   return apiSuccess({ ...rest, national_id, email: user.email, avatar_url }, "تم جلب الملف الشخصي");
 }
 
-/** Name/phone can be self-edited at most once every 30 days (Section 6) -
+/** Name/phone can be self-edited at most once every 7 days (Section 6) -
  * email is never accepted here, there is no self-service email-change path
  * anywhere in this app. */
 export async function PATCH(request: NextRequest) {

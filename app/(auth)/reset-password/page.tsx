@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/lib/validation/auth.schemas";
 import { postJson } from "@/lib/api/client-fetch";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { AuthCard } from "../_components/AuthCard";
 import { Field, FormMessage, SubmitButton } from "../_components/Field";
 
@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <Field label="الباسورد الجديد" htmlFor="password" error={errors.password?.message}>
-            <Input id="password" type="password" aria-invalid={!!errors.password} {...register("password")} />
+            <PasswordInput id="password" aria-invalid={!!errors.password} {...register("password")} />
           </Field>
 
           <Field
@@ -59,9 +59,8 @@ export default function ResetPasswordPage() {
             htmlFor="confirm_password"
             error={errors.confirm_password?.message}
           >
-            <Input
+            <PasswordInput
               id="confirm_password"
-              type="password"
               aria-invalid={!!errors.confirm_password}
               {...register("confirm_password")}
             />

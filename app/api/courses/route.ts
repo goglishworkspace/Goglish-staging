@@ -31,7 +31,39 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return apiError("تعذر جلب الكورسات", null, 500);
-  return apiSuccess(data, "تم جلب الكورسات");
+
+  const withTeachers = await attachTeachers(supabase, data ?? []);
+  return apiSuccess(withTeachers, "تم جلب الكورسات");
+}
+
+/** Attaches each course's teacher roster (name/id, for display - "مين بيقدم
+ * الكورس ده") via the same two-step M:M lookup style as the teacher_id
+ * filter above, rather than an embed - course_teachers isn't a sibling-FK
+ * situation PostgREST can embed directly off `courses`. */
+async function attachTeachers<T extends { id: string }>(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  courses: T[],
+): Promise<Array<T & { teachers: { id: string; display_name: string | null }[] }>> {
+  if (!courses.length) return [];
+
+  const { data: rows } = await supabase
+    .from("course_teachers")
+    .select("course_id, teachers(id, teacher_profiles(display_name))")
+    .in(
+      "course_id",
+      courses.map((c) => c.id),
+    );
+
+  const teachersByCourse = new Map<string, { id: string; display_name: string | null }[]>();
+  for (const row of rows ?? []) {
+    const teacher = row.teachers as unknown as { id: string; teacher_profiles: { display_name: string | null } | null } | null;
+    if (!teacher) continue;
+    const list = teachersByCourse.get(row.course_id) ?? [];
+    list.push({ id: teacher.id, display_name: teacher.teacher_profiles?.display_name ?? null });
+    teachersByCourse.set(row.course_id, list);
+  }
+
+  return courses.map((course) => ({ ...course, teachers: teachersByCourse.get(course.id) ?? [] }));
 }
 
 export async function POST(request: NextRequest) {

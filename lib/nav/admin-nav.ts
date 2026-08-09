@@ -12,6 +12,7 @@ import {
   ScrollText,
   DatabaseBackup,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 export const ADMIN_NAV_ITEMS = [
@@ -19,6 +20,7 @@ export const ADMIN_NAV_ITEMS = [
   { href: "/admin/users", label: "المستخدمون", icon: Users },
   { href: "/admin/subjects", label: "المواد الدراسية", icon: GraduationCap },
   { href: "/admin/courses", label: "الكورسات والموافقات", icon: BookOpen },
+  { href: "/admin/deletion-requests", label: "طلبات الحذف", icon: Trash2 },
   { href: "/admin/comments", label: "مراجعة التعليقات", icon: MessageSquareWarning },
   { href: "/admin/payments", label: "المدفوعات والتقارير المالية", icon: Wallet },
   { href: "/admin/coupons", label: "الكوبونات", icon: Ticket },

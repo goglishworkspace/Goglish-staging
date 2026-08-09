@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("exams")
     .select(
-      "id, course_id, title, time_limit_seconds, passing_score_percent, solutions_visible_at, xp_reward, coin_reward, status, created_at",
+      "id, course_id, title, time_limit_seconds, passing_score_percent, solutions_visible_at, xp_reward, coin_reward, status, deletion_requested_at, created_at",
     )
     .eq("course_id", courseId);
 

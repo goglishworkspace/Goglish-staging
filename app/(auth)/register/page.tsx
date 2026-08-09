@@ -10,7 +10,9 @@ import { GraduationCap, Users } from "lucide-react";
 import { selfRegisterSchema, type SelfRegisterInput, type RoleType } from "@/lib/validation/auth.schemas";
 import { nationalIdErrorMessage } from "@/lib/national-id";
 import { createClient } from "@/lib/supabase/client";
+import { postJson } from "@/lib/api/client-fetch";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AuthCard } from "../_components/AuthCard";
@@ -93,7 +95,7 @@ function RegisterPageContent() {
 
   const onSubmit = async (values: SelfRegisterInput) => {
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: values.email,
       password: values.password,
       options: {
@@ -110,22 +112,44 @@ function RegisterPageContent() {
       },
     });
 
-    // A *confirmed* existing email comes back as a real error here (unlike
-    // an unconfirmed pending signup, which is a "success" with an empty
-    // identities array - handled below) - showing that error's message
-    // would leak account existence just as directly, so it gets the same
-    // "check your email" navigation as a real new registration instead.
     if (error && error.code !== "user_already_exists") {
       toast.error(error.message);
       return;
     }
 
-    // Supabase returns success (no error) for an already-registered email
-    // too, to avoid leaking which emails exist - an empty identities array
-    // is the only signal that no new user was actually created. We follow
-    // the exact same navigation either way so the UI gives no enumeration
-    // signal; Supabase itself silently skips sending a second confirmation
-    // email for an existing account.
+    // A confirmed existing account surfaces as either a real
+    // "user_already_exists" error, or (with Supabase's enumeration
+    // protection on) a "success" whose identities array is empty because no
+    // new identity was actually created - either way, no new user, so tell
+    // them plainly instead of sending them to "check your email" for an
+    // email that was never sent. This deliberately trades the anti-enumeration
+    // posture (an attacker could probe which emails are registered) for a
+    // clearer signup experience - explicit product choice, not an oversight.
+    if (error?.code === "user_already_exists" || data.user?.identities?.length === 0) {
+      toast.error("الإيميل ده مسجّل بحساب بالفعل - سجّل دخول أو استخدم نسيت الباسورد");
+      return;
+    }
+
+    // signUp() silently keeps the *first* attempt's metadata when this email
+    // already has an unconfirmed identity (a retry after an earlier
+    // abandoned/typo'd attempt) - force it to what was just typed so a retry
+    // doesn't leave the profile with stale or missing phone/grade/etc. Best
+    // effort: if this fails, registration still proceeds (complete_self_registration
+    // will just read whatever metadata already exists, same as before this fix).
+    if (data.user?.id) {
+      await postJson("/api/auth/register/sync-metadata", {
+        user_id: data.user.id,
+        email: values.email,
+        role_type: values.role_type,
+        first_name: values.first_name,
+        last_name: values.last_name,
+        phone: values.phone || undefined,
+        national_id: values.role_type === "student" ? values.national_id : undefined,
+        grade: values.role_type === "student" ? values.grade : undefined,
+        child_national_id: values.role_type === "parent" ? values.child_national_id : undefined,
+      }).catch(() => {});
+    }
+
     router.push(`/verify-email?email=${encodeURIComponent(values.email)}`);
   };
 
@@ -213,7 +237,7 @@ function RegisterPageContent() {
             </Field>
           )}
 
-          <Field label="رقم الهاتف (اختياري)" htmlFor="phone" error={errors.phone?.message}>
+          <Field label="رقم الهاتف" htmlFor="phone" error={errors.phone?.message}>
             <Input id="phone" aria-invalid={!!errors.phone} {...register("phone")} />
           </Field>
 
@@ -235,7 +259,7 @@ function RegisterPageContent() {
           )}
 
           <Field label="الباسورد" htmlFor="password" error={errors.password?.message}>
-            <Input id="password" type="password" aria-invalid={!!errors.password} {...register("password")} />
+            <PasswordInput id="password" aria-invalid={!!errors.password} {...register("password")} />
           </Field>
 
           <Field
@@ -243,9 +267,8 @@ function RegisterPageContent() {
             htmlFor="confirm_password"
             error={errors.confirm_password?.message}
           >
-            <Input
+            <PasswordInput
               id="confirm_password"
-              type="password"
               aria-invalid={!!errors.confirm_password}
               {...register("confirm_password")}
             />

@@ -133,7 +133,8 @@ export default function TeacherProfilePage({ params }: { params: Promise<{ id: s
             <div className="mt-4 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {coursesLoading &&
                 Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-56 w-full rounded-xl" />)}
-              {!coursesLoading && courses?.map((course) => <CourseCard key={course.id} course={course} />)}
+              {!coursesLoading &&
+                courses?.map((course) => <CourseCard key={course.id} course={course} showTeacher={false} />)}
             </div>
             {!coursesLoading && !courses?.length && (
               <p className="mt-4 text-small text-muted-foreground">لا يوجد كورسات لهذا المدرس حالياً.</p>

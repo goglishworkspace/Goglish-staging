@@ -90,15 +90,22 @@ export async function fulfillPaymentEvent(params: {
     .update({ status: "completed", completed_at: new Date().toISOString(), failure_reason: null })
     .eq("id", payment.id);
 
-  const { data: order, error: orderError } = await admin
-    .from("orders")
-    .select("*")
-    .eq("id", payment.order_id)
-    .single();
+  await fulfillOrder(payment.order_id);
+  await markEventProcessed(params.eventRowId);
+}
+
+/** Grants access/subscription for a paid-in-full order, generates its
+ * invoice, and notifies the buyer - shared by the real payment-webhook path
+ * above and the free-checkout path (order.total_cents === 0), which skips
+ * the payment provider entirely but still needs the same fulfilment.
+ * Idempotent: re-running for an already-completed order is harmless
+ * (entitlements/subscriptions/invoice all upsert or no-op on conflict). */
+export async function fulfillOrder(orderId: string): Promise<void> {
+  const admin = createAdminClient();
+
+  const { data: order, error: orderError } = await admin.from("orders").select("*").eq("id", orderId).single();
   if (orderError) throw orderError;
 
-  // Idempotent: re-running this for an already-completed order is harmless
-  // (entitlements/subscriptions/invoice all upsert or no-op on conflict).
   await admin.from("orders").update({ status: "completed" }).eq("id", order.id);
 
   // uses_count is now reserved atomically at order-creation time (see
@@ -172,8 +179,6 @@ export async function fulfillPaymentEvent(params: {
     currency: order.currency,
     isPremium,
   });
-
-  await markEventProcessed(params.eventRowId);
 }
 
 async function markEventProcessed(eventRowId: string): Promise<void> {

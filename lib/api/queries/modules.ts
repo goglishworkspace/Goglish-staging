@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import type { ApiSuccess } from "@/lib/api/response";
 
-export type CourseModule = { id: string; course_id: string; title: string; order_index: number };
+export type CourseModule = {
+  id: string;
+  course_id: string;
+  title: string;
+  order_index: number;
+  deletion_requested_at?: string | null;
+};
 
 export type Lesson = {
   id: string;
@@ -14,6 +20,7 @@ export type Lesson = {
   status: string;
   submitted_at?: string | null;
   rejection_reason?: string | null;
+  deletion_requested_at?: string | null;
 };
 
 export function useCourseModules(courseId: string) {
@@ -102,6 +109,28 @@ export function useSubmitLessonForReview(moduleId: string) {
     mutationFn: async (lessonId: string) => {
       const { data } = await api.post(`/api/lessons/${lessonId}/submit`);
       return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["module-lessons", moduleId] }),
+  });
+}
+
+export function useRequestModuleDeletion(courseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (moduleId: string) => {
+      const { data } = await api.post<ApiSuccess<CourseModule>>(`/api/modules/${moduleId}/request-deletion`);
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course-modules", courseId] }),
+  });
+}
+
+export function useRequestLessonDeletion(moduleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (lessonId: string) => {
+      const { data } = await api.post<ApiSuccess<Lesson>>(`/api/lessons/${lessonId}/request-deletion`);
+      return data.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["module-lessons", moduleId] }),
   });

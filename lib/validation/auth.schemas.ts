@@ -61,8 +61,7 @@ export const selfRegisterSchema = z
     first_name: z.string().trim().min(1, "الاسم الأول مطلوب"),
     last_name: z.string().trim().min(1, "الاسم الأخير مطلوب"),
     email: z.email("إيميل غير صالح"),
-    // HTML inputs submit "" (not undefined) when left blank.
-    phone: z.string().trim().optional(),
+    phone: z.string().trim().min(1, "رقم الهاتف مطلوب"),
     password,
     confirm_password: z.string(),
     national_id: z.string().trim().optional(),
@@ -107,6 +106,26 @@ export const selfRegisterSchema = z
   });
 
 export type SelfRegisterInput = z.infer<typeof selfRegisterSchema>;
+
+// Same fields as selfRegisterSchema minus the password ones, plus the
+// auth.users id signUp() already returned to the client - see
+// app/api/auth/register/sync-metadata/route.ts for why this exists. Kept as
+// its own plain object (not derived from selfRegisterSchema, which is
+// wrapped in .refine()/.superRefine() and so isn't a plain ZodObject you can
+// .omit()/.extend() off of).
+export const syncRegisterMetadataSchema = z.object({
+  user_id: z.uuid(),
+  role_type: roleTypeSchema,
+  first_name: z.string().trim().min(1, "الاسم الأول مطلوب"),
+  last_name: z.string().trim().min(1, "الاسم الأخير مطلوب"),
+  email: z.email("إيميل غير صالح"),
+  phone: z.string().trim().optional(),
+  national_id: z.string().trim().optional(),
+  grade: gradeSchema.optional(),
+  child_national_id: z.string().trim().optional(),
+});
+
+export type SyncRegisterMetadataInput = z.infer<typeof syncRegisterMetadataSchema>;
 
 export const loginSchema = z.object({
   email: z.email("إيميل غير صالح"),

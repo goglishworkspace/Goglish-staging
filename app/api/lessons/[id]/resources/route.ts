@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyFileMagicBytes, hasMagicByteSignature } from "@/lib/services/file-validation.service";
 
-const RESOURCE_COLUMNS = "id, title, file_type, file_size_bytes, created_at";
+const RESOURCE_COLUMNS = "id, title, file_type, file_size_bytes, deletion_requested_at, created_at";
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 const ALLOWED_TYPES = [
   "application/pdf",

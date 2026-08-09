@@ -26,7 +26,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   } = await supabase.auth.getUser();
   const has_access = user ? await hasCourseAccess(supabase, user.id, id) : false;
 
-  return apiSuccess({ ...data, has_access }, "تم جلب الكورس");
+  // Same two-step M:M lookup as GET /api/courses - course_teachers isn't a
+  // sibling-FK PostgREST can embed directly off `courses`. A dedicated
+  // GET /api/courses/[id]/teachers already existed for the admin roster UI,
+  // but the course detail page never called it, so "مين بيقدم الكورس ده"
+  // never showed up here - inlined instead of an extra client round-trip.
+  const { data: teacherRows } = await supabase
+    .from("course_teachers")
+    .select("teachers(id, teacher_profiles(display_name))")
+    .eq("course_id", id);
+  const teachers = (teacherRows ?? [])
+    .map((row) => row.teachers as unknown as { id: string; teacher_profiles: { display_name: string | null } | null } | null)
+    .filter((t): t is NonNullable<typeof t> => !!t)
+    .map((t) => ({ id: t.id, display_name: t.teacher_profiles?.display_name ?? null }));
+
+  return apiSuccess({ ...data, has_access, teachers }, "تم جلب الكورس");
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

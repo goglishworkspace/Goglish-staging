@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { TeachersSection } from "@/components/landing/TeachersSection";
 import { FeaturedVideoSection } from "@/components/landing/FeaturedVideoSection";
 import { HonorBoardSection } from "@/components/landing/HonorBoardSection";
 import { CtaSection } from "@/components/landing/CtaSection";
 import { createClient } from "@/lib/supabase/server";
+import { resolveOwnDashboardPath } from "@/lib/auth/require-role";
 
 export const metadata: Metadata = {
   title: "الرئيسية",
@@ -16,6 +18,13 @@ export default async function HomePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // A logged-in user landing on "/" (right after login, or by clicking the
+  // logo/bookmark) goes straight to their own dashboard instead of the
+  // marketing page meant for visitors.
+  if (user) {
+    redirect(await resolveOwnDashboardPath(supabase));
+  }
 
   return (
     <>

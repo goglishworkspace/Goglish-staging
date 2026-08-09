@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,8 @@ import {
   useCreateLesson,
   useUpdateLesson,
   useSubmitLessonForReview,
+  useRequestModuleDeletion,
+  useRequestLessonDeletion,
   type CourseModule,
   type Lesson,
 } from "@/lib/api/queries/modules";
@@ -32,6 +34,8 @@ import {
   usePublishQuiz,
   useQuizQuestions,
   useCreateQuizQuestion,
+  useRequestQuizDeletion,
+  useRequestQuizQuestionDeletion,
   type Quiz,
 } from "@/lib/api/queries/quizzes";
 import {
@@ -41,13 +45,108 @@ import {
   usePublishExam,
   useExamQuestions,
   useCreateExamQuestion,
+  useRequestExamDeletion,
+  useRequestExamQuestionDeletion,
   type Exam,
 } from "@/lib/api/queries/exams";
 import type { QuestionInput } from "@/lib/api/queries/question-types";
 import { extractYouTubeId } from "@/lib/utils";
+import { useLessonResources, useUploadLessonResource, useRequestResourceDeletion } from "@/lib/api/queries/lesson-resources";
+import { FileText } from "lucide-react";
 
 function apiErrorMessage(err: unknown, fallback: string) {
   return (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} كيلوبايت`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} ميجابايت`;
+}
+
+function LessonResourcesSection({ lessonId }: { lessonId: string }) {
+  const { data: resources, isLoading } = useLessonResources(lessonId);
+  const uploadResource = useUploadLessonResource(lessonId);
+  const requestDeletion = useRequestResourceDeletion(lessonId);
+  const [resourceTitle, setResourceTitle] = useState("");
+  const [resourceFile, setResourceFile] = useState<File | null>(null);
+
+  const onUpload = () => {
+    if (!resourceFile || !resourceTitle.trim()) {
+      toast.error("لازم تختار ملف وتكتب عنوان له");
+      return;
+    }
+    uploadResource.mutate(
+      { file: resourceFile, title: resourceTitle.trim() },
+      {
+        onSuccess: () => {
+          toast.success("تم رفع الملف");
+          setResourceTitle("");
+          setResourceFile(null);
+        },
+        onError: (err) => toast.error(apiErrorMessage(err, "تعذر رفع الملف")),
+      },
+    );
+  };
+
+  const onRequestDeletion = (resourceId: string) => {
+    requestDeletion.mutate(resourceId, {
+      onSuccess: () => toast.success("تم إرسال طلب الحذف، هيتراجع من الأدمن"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال طلب الحذف")),
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>ملفات الدرس (PDF)</Label>
+      {isLoading ? (
+        <Skeleton className="h-8 w-full" />
+      ) : resources && resources.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {resources.map((r) => (
+            <li key={r.id} className="flex items-center gap-2 text-caption text-muted-foreground">
+              <FileText className="size-3.5 shrink-0" />
+              <span className="truncate">{r.title}</span>
+              <span className="shrink-0">({formatFileSize(r.file_size_bytes)})</span>
+              {r.deletion_requested_at ? (
+                <span className="shrink-0 text-primary">قيد المراجعة للحذف</span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="طلب حذف الملف"
+                  disabled={requestDeletion.isPending}
+                  onClick={() => onRequestDeletion(r.id)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-caption text-muted-foreground">مفيش ملفات مرفوعة على الدرس ده لسه</p>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <Input
+            placeholder="عنوان الملف"
+            value={resourceTitle}
+            onChange={(e) => setResourceTitle(e.target.value)}
+          />
+        </div>
+        <Input
+          type="file"
+          accept="application/pdf"
+          onChange={(e) => setResourceFile(e.target.files?.[0] ?? null)}
+          className="sm:w-56"
+        />
+        <Button type="button" size="sm" disabled={uploadResource.isPending} onClick={onUpload}>
+          رفع
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function EditLessonDialog({
@@ -159,6 +258,7 @@ function EditLessonDialog({
               فيديو تشويقي قصير يقدر أي حد يشوفه من غير ما يشترك. سيبه فاضي لو مش عايز تضيف/تغيّر معاينة.
             </p>
           </div>
+          <LessonResourcesSection lessonId={lesson.id} />
           <DialogFooter>
             <Button type="submit" disabled={updateLesson.isPending}>
               حفظ
@@ -175,9 +275,25 @@ function QuizCard({ quiz, lessonId }: { quiz: Quiz; lessonId: string }) {
   const createQuestion = useCreateQuizQuestion(quiz.id);
   const updateQuiz = useUpdateQuiz(lessonId);
   const publishQuiz = usePublishQuiz(lessonId);
+  const requestQuizDeletion = useRequestQuizDeletion(lessonId);
+  const requestQuestionDeletion = useRequestQuizQuestionDeletion(quiz.id);
   const [addingQuestion, setAddingQuestion] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(quiz.title);
+
+  const onRequestQuizDeletion = () => {
+    requestQuizDeletion.mutate(quiz.id, {
+      onSuccess: () => toast.success("تم إرسال طلب الحذف، هيتراجع من الأدمن"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال طلب الحذف")),
+    });
+  };
+
+  const onRequestQuestionDeletion = (questionId: string) => {
+    requestQuestionDeletion.mutate(questionId, {
+      onSuccess: () => toast.success("تم إرسال طلب الحذف، هيتراجع من الأدمن"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال طلب الحذف")),
+    });
+  };
 
   const onSaveTitle = () => {
     if (!titleDraft.trim()) return;
@@ -230,6 +346,7 @@ function QuizCard({ quiz, lessonId }: { quiz: Quiz; lessonId: string }) {
               <Badge variant={quiz.status === "published" ? "default" : "outline"}>
                 {quiz.status === "published" ? "منشور" : "مسودة"}
               </Badge>
+              {quiz.deletion_requested_at && <Badge variant="outline">قيد المراجعة للحذف</Badge>}
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -247,6 +364,17 @@ function QuizCard({ quiz, lessonId }: { quiz: Quiz; lessonId: string }) {
                 نشر
               </Button>
             )}
+            {!quiz.deletion_requested_at && (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={requestQuizDeletion.isPending}
+                onClick={onRequestQuizDeletion}
+              >
+                <Trash2 />
+                طلب حذف
+              </Button>
+            )}
           </div>
         </div>
 
@@ -254,8 +382,24 @@ function QuizCard({ quiz, lessonId }: { quiz: Quiz; lessonId: string }) {
         {!isLoading && !!questions?.length && (
           <ul className="flex flex-col gap-1">
             {questions.map((q) => (
-              <li key={q.id} className="text-small text-muted-foreground">
-                {q.order_index + 1}. {q.prompt} ({q.type === "mcq" ? "اختيار من متعدد" : "صح/غلط"})
+              <li key={q.id} className="flex items-center gap-2 text-small text-muted-foreground">
+                <span className="min-w-0 flex-1">
+                  {q.order_index + 1}. {q.prompt} ({q.type === "mcq" ? "اختيار من متعدد" : "صح/غلط"})
+                </span>
+                {q.deletion_requested_at ? (
+                  <span className="shrink-0 text-caption text-primary">قيد المراجعة للحذف</span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="طلب حذف السؤال"
+                    disabled={requestQuestionDeletion.isPending}
+                    onClick={() => onRequestQuestionDeletion(q.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -374,6 +518,7 @@ function AddLessonForm({ moduleId, nextOrder, onDone }: { moduleId: string; next
 
 function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
   const submitLesson = useSubmitLessonForReview(moduleId);
+  const requestLessonDeletion = useRequestLessonDeletion(moduleId);
   const [editOpen, setEditOpen] = useState(false);
   const [showQuizzes, setShowQuizzes] = useState(false);
   const canEdit = lesson.status === "draft" || lesson.status === "rejected";
@@ -382,6 +527,13 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
     submitLesson.mutate(lesson.id, {
       onSuccess: () => toast.success("تم إرسال الدرس للمراجعة"),
       onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال الدرس للمراجعة")),
+    });
+  };
+
+  const onRequestDeletion = () => {
+    requestLessonDeletion.mutate(lesson.id, {
+      onSuccess: () => toast.success("تم إرسال طلب الحذف، هيتراجع من الأدمن"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال طلب الحذف")),
     });
   };
 
@@ -412,6 +564,19 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
               إرسال للمراجعة
             </Button>
           )}
+          {lesson.deletion_requested_at ? (
+            <span className="text-caption text-primary">قيد المراجعة للحذف</span>
+          ) : (
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={requestLessonDeletion.isPending}
+              onClick={onRequestDeletion}
+            >
+              <Trash2 />
+              طلب حذف
+            </Button>
+          )}
         </div>
       </div>
 
@@ -427,6 +592,7 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
 function ModuleSection({ module: mod }: { module: CourseModule }) {
   const { data: lessons, isLoading } = useModuleLessons(mod.id);
   const updateModule = useUpdateModule(mod.course_id);
+  const requestModuleDeletion = useRequestModuleDeletion(mod.course_id);
   const [addingLesson, setAddingLesson] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(mod.title);
@@ -445,6 +611,13 @@ function ModuleSection({ module: mod }: { module: CourseModule }) {
     );
   };
 
+  const onRequestDeletion = () => {
+    requestModuleDeletion.mutate(mod.id, {
+      onSuccess: () => toast.success("تم إرسال طلب الحذف، هيتراجع من الأدمن"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال طلب الحذف")),
+    });
+  };
+
   return (
     <Card className="w-full">
       <CardContent className="flex w-full flex-col gap-3 p-4">
@@ -460,7 +633,10 @@ function ModuleSection({ module: mod }: { module: CourseModule }) {
               </Button>
             </div>
           ) : (
-            <h3 className="font-semibold text-foreground">{mod.title}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-foreground">{mod.title}</h3>
+              {mod.deletion_requested_at && <Badge variant="outline">قيد المراجعة للحذف</Badge>}
+            </div>
           )}
           <div className="flex items-center gap-2">
             {!editingTitle && (
@@ -472,6 +648,17 @@ function ModuleSection({ module: mod }: { module: CourseModule }) {
               <Plus />
               درس جديد
             </Button>
+            {!mod.deletion_requested_at && (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={requestModuleDeletion.isPending}
+                onClick={onRequestDeletion}
+              >
+                <Trash2 />
+                طلب حذف
+              </Button>
+            )}
           </div>
         </div>
 
@@ -538,9 +725,25 @@ function ExamCard({ exam, courseId }: { exam: Exam; courseId: string }) {
   const createQuestion = useCreateExamQuestion(exam.id);
   const updateExam = useUpdateExam(courseId);
   const publishExam = usePublishExam(courseId);
+  const requestExamDeletion = useRequestExamDeletion(courseId);
+  const requestQuestionDeletion = useRequestExamQuestionDeletion(exam.id);
   const [addingQuestion, setAddingQuestion] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(exam.title);
+
+  const onRequestExamDeletion = () => {
+    requestExamDeletion.mutate(exam.id, {
+      onSuccess: () => toast.success("تم إرسال طلب الحذف، هيتراجع من الأدمن"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال طلب الحذف")),
+    });
+  };
+
+  const onRequestQuestionDeletion = (questionId: string) => {
+    requestQuestionDeletion.mutate(questionId, {
+      onSuccess: () => toast.success("تم إرسال طلب الحذف، هيتراجع من الأدمن"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال طلب الحذف")),
+    });
+  };
 
   const onSaveTitle = () => {
     if (!titleDraft.trim()) return;
@@ -593,6 +796,7 @@ function ExamCard({ exam, courseId }: { exam: Exam; courseId: string }) {
               <Badge variant={exam.status === "published" ? "default" : "outline"}>
                 {exam.status === "published" ? "منشور" : "مسودة"}
               </Badge>
+              {exam.deletion_requested_at && <Badge variant="outline">قيد المراجعة للحذف</Badge>}
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -610,6 +814,17 @@ function ExamCard({ exam, courseId }: { exam: Exam; courseId: string }) {
                 نشر
               </Button>
             )}
+            {!exam.deletion_requested_at && (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={requestExamDeletion.isPending}
+                onClick={onRequestExamDeletion}
+              >
+                <Trash2 />
+                طلب حذف
+              </Button>
+            )}
           </div>
         </div>
 
@@ -617,8 +832,24 @@ function ExamCard({ exam, courseId }: { exam: Exam; courseId: string }) {
         {!isLoading && !!questions?.length && (
           <ul className="flex flex-col gap-1">
             {questions.map((q) => (
-              <li key={q.id} className="text-small text-muted-foreground">
-                {q.order_index + 1}. {q.prompt} ({q.type === "mcq" ? "اختيار من متعدد" : "صح/غلط"})
+              <li key={q.id} className="flex items-center gap-2 text-small text-muted-foreground">
+                <span className="min-w-0 flex-1">
+                  {q.order_index + 1}. {q.prompt} ({q.type === "mcq" ? "اختيار من متعدد" : "صح/غلط"})
+                </span>
+                {q.deletion_requested_at ? (
+                  <span className="shrink-0 text-caption text-primary">قيد المراجعة للحذف</span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="طلب حذف السؤال"
+                    disabled={requestQuestionDeletion.isPending}
+                    onClick={() => onRequestQuestionDeletion(q.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -641,12 +872,17 @@ function ExamCard({ exam, courseId }: { exam: Exam; courseId: string }) {
 function AddExamForm({ courseId, onDone }: { courseId: string; onDone: () => void }) {
   const createExam = useCreateExam(courseId);
   const [title, setTitle] = useState("");
+  const [minutes, setMinutes] = useState("");
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    const parsedMinutes = Number(minutes);
     createExam.mutate(
-      { title: title.trim() },
+      {
+        title: title.trim(),
+        ...(minutes.trim() && parsedMinutes > 0 ? { time_limit_seconds: Math.round(parsedMinutes * 60) } : {}),
+      },
       {
         onSuccess: () => {
           toast.success("تم إنشاء الامتحان");
@@ -661,6 +897,15 @@ function AddExamForm({ courseId, onDone }: { courseId: string; onDone: () => voi
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-end">
       <div className="flex-1">
         <Input placeholder="عنوان الامتحان" value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="w-full sm:w-32">
+        <Input
+          type="number"
+          min={1}
+          placeholder="المدة (دقيقة)"
+          value={minutes}
+          onChange={(e) => setMinutes(e.target.value)}
+        />
       </div>
       <div className="flex gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>

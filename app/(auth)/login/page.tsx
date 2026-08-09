@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth.schemas";
 import { postJson } from "@/lib/api/client-fetch";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -71,7 +72,7 @@ export default function LoginPage() {
         </Field>
 
         <Field label="الباسورد" htmlFor="password" error={errors.password?.message}>
-          <Input id="password" type="password" aria-invalid={!!errors.password} {...register("password")} />
+          <PasswordInput id="password" aria-invalid={!!errors.password} {...register("password")} />
         </Field>
 
         <SubmitButton disabled={isSubmitting}>دخول</SubmitButton>

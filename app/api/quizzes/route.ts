@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("quizzes")
     .select(
-      "id, lesson_id, kind, title, max_attempts, time_limit_seconds, passing_score_percent, xp_reward, coin_reward, status, created_at",
+      "id, lesson_id, kind, title, max_attempts, time_limit_seconds, passing_score_percent, xp_reward, coin_reward, status, deletion_requested_at, created_at",
     )
     .eq("lesson_id", lessonId);
 

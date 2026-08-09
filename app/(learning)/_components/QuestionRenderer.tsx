@@ -11,10 +11,14 @@ export function QuestionRenderer({
   question,
   value,
   onChange,
+  disabled = false,
 }: {
   question: PublicQuestion;
   value: ResponseValue | undefined;
   onChange: (value: ResponseValue) => void;
+  /** Locks the question after it's been checked (quiz practice mode) so the
+   * student can't edit an answer whose feedback is already shown. */
+  disabled?: boolean;
 }) {
   switch (question.type) {
     case "mcq":
@@ -28,6 +32,7 @@ export function QuestionRenderer({
                 name={question.id}
                 checked={value === a.id}
                 onChange={() => onChange(a.id)}
+                disabled={disabled}
               />
               <span>{a.content}</span>
             </label>
@@ -43,6 +48,7 @@ export function QuestionRenderer({
           onChange={(e) => onChange(e.target.value)}
           className={inputClass}
           placeholder="اكتب إجابتك"
+          disabled={disabled}
         />
       );
 
@@ -54,6 +60,7 @@ export function QuestionRenderer({
           rows={4}
           className={inputClass}
           placeholder="اكتب إجابتك"
+          disabled={disabled}
         />
       );
 
@@ -83,10 +90,22 @@ export function QuestionRenderer({
                 {index + 1}. {byId.get(id)?.content}
               </span>
               <span className="flex gap-1">
-                <button type="button" onClick={() => move(index, -1)} className="px-2" aria-label="لأعلى">
+                <button
+                  type="button"
+                  onClick={() => move(index, -1)}
+                  className="px-2 disabled:opacity-40"
+                  aria-label="لأعلى"
+                  disabled={disabled}
+                >
                   ▲
                 </button>
-                <button type="button" onClick={() => move(index, 1)} className="px-2" aria-label="لأسفل">
+                <button
+                  type="button"
+                  onClick={() => move(index, 1)}
+                  className="px-2 disabled:opacity-40"
+                  aria-label="لأسفل"
+                  disabled={disabled}
+                >
                   ▼
                 </button>
               </span>
@@ -116,6 +135,7 @@ export function QuestionRenderer({
                 value={pairByLeft.get(l.id) ?? ""}
                 onChange={(e) => setPair(l.id, e.target.value)}
                 className="rounded-lg border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-neutral-800"
+                disabled={disabled}
               >
                 <option value="" disabled>
                   اختر...

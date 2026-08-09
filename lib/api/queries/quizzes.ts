@@ -9,6 +9,7 @@ export type Quiz = {
   kind: "quiz";
   title: string;
   status: "draft" | "published";
+  deletion_requested_at?: string | null;
 };
 
 export function useLessonQuizzes(lessonId: string) {
@@ -73,6 +74,28 @@ export function useCreateQuizQuestion(quizId: string) {
   return useMutation({
     mutationFn: async (input: QuestionInput) => {
       const { data } = await api.post<ApiSuccess<Question>>(`/api/quizzes/${quizId}/questions`, input);
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quiz-questions", quizId] }),
+  });
+}
+
+export function useRequestQuizDeletion(lessonId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (quizId: string) => {
+      const { data } = await api.post<ApiSuccess<Quiz>>(`/api/quizzes/${quizId}/request-deletion`);
+      return data.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lesson-quizzes", lessonId] }),
+  });
+}
+
+export function useRequestQuizQuestionDeletion(quizId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (questionId: string) => {
+      const { data } = await api.post<ApiSuccess<Question>>(`/api/questions/${questionId}/request-deletion`);
       return data.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quiz-questions", quizId] }),

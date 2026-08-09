@@ -3,12 +3,47 @@ import { loginSchema } from "@/lib/validation/auth.schemas";
 import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getOrCreateDeviceId,
   computeDeviceFingerprint,
   enforceDeviceLimit,
 } from "@/lib/services/device.service";
 import { logAudit } from "@/lib/services/audit-log.service";
+import {
+  completeSelfRegistrationIfNeeded,
+  type SelfRegistrationMetadata,
+} from "@/lib/services/self-registration.service";
+
+/** The normal completion path (app/auth/callback/route.ts) only ever fires
+ * once, right after a confirmation link's PKCE code exchange succeeds - and
+ * that exchange fails if the link is opened in a different browser/device
+ * than the one that started signUp() (a very common real pattern: confirm
+ * from a phone's mail app after registering on desktop). Supabase still
+ * marks the email confirmed regardless, so the user can just log in
+ * normally afterward - landing here with a valid session but a profile
+ * stuck on the handle_new_user() stub (no phone/grade/national_id). Login
+ * is the next guaranteed touchpoint, so retry completion here, keyed off
+ * profiles.self_registration_completed_at rather than which fields happen
+ * to be null. Best-effort: a failure here must never block a legitimate,
+ * already-authenticated login. */
+async function repairSelfRegistrationIfNeeded(userId: string, metadata: SelfRegistrationMetadata): Promise<void> {
+  if (metadata.role_type !== "student" && metadata.role_type !== "parent") return;
+
+  try {
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("self_registration_completed_at")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profile && !profile.self_registration_completed_at) {
+      await completeSelfRegistrationIfNeeded(userId, metadata);
+    }
+  } catch (error) {
+    console.error("self-registration repair failed on login", error);
+  }
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -31,6 +66,8 @@ export async function POST(request: NextRequest) {
     if (error || !data.user) {
       return apiError("الإيميل أو الباسورد غير صحيح", null, 401);
     }
+
+    await repairSelfRegistrationIfNeeded(data.user.id, (data.user.user_metadata ?? {}) as SelfRegistrationMetadata);
 
     const userAgent = request.headers.get("user-agent");
     const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;

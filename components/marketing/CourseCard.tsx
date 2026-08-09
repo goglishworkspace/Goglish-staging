@@ -2,7 +2,11 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Course } from "@/lib/api/queries/courses";
 
-export function CourseCard({ course }: { course: Course }) {
+export function CourseCard({ course, showTeacher = true }: { course: Course; showTeacher?: boolean }) {
+  const teacherNames = course.teachers
+    .map((t) => t.display_name)
+    .filter((name): name is string => !!name);
+
   return (
     <Link href={`/courses/${course.id}`}>
       <Card className="w-full overflow-hidden transition-shadow hover:shadow-md">
@@ -26,6 +30,9 @@ export function CourseCard({ course }: { course: Course }) {
         )}
         <CardContent className="flex flex-col gap-1 p-4">
           <h3 className="line-clamp-1 font-semibold text-foreground">{course.title}</h3>
+          {showTeacher && !!teacherNames.length && (
+            <p className="line-clamp-1 text-caption text-muted-foreground">{teacherNames.join("، ")}</p>
+          )}
           {course.description && (
             <p className="line-clamp-2 text-small text-muted-foreground">{course.description}</p>
           )}

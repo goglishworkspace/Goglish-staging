@@ -8,6 +8,7 @@ import { payOrderSchema } from "@/lib/validation/order.schemas";
 import { getPaymentProvider } from "@/lib/payments";
 import { MAX_PAYMENT_ATTEMPTS } from "@/lib/services/payment-state-machine.service";
 import { checkRateLimit } from "@/lib/services/rate-limit.service";
+import { fulfillOrder } from "@/lib/services/webhook-processing.service";
 
 const PAYMENT_RATE_LIMIT = { maxCount: 3, windowSeconds: 10 * 60 };
 
@@ -42,6 +43,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return apiError("بيانات غير صالحة", zodErrorsToApiErrors(parsed.error), 422);
   }
 
+  // Land the student back on the thing they bought, not the homepage - only
+  // "course" has a dedicated page today; bundles/subscriptions fall back.
+  const origin = request.nextUrl.origin;
+  const successUrl =
+    order.item_type === "course"
+      ? `${origin}/courses/${order.item_id}?status=success`
+      : `${origin}/?order=${order.id}&status=success`;
+
+  // A free course, or a paid one discounted to zero by a coupon, has nothing
+  // for a payment provider to actually charge - some providers reject a
+  // zero-amount checkout outright, and even when they don't it's a strange
+  // "enter your card for EGP 0.00" experience. total_cents is computed
+  // entirely server-side in POST /api/orders (never trusted from the
+  // client), so skipping the provider here and fulfilling immediately is
+  // safe regardless of why the total is zero.
+  if (order.total_cents === 0) {
+    await fulfillOrder(order.id);
+    return apiSuccess({ payment_id: null, checkout_url: successUrl }, "الكورس مجاني، تم تفعيل الوصول مباشرة");
+  }
+
   const admin = createAdminClient();
   const { count: attemptCount } = await admin
     .from("payments")
@@ -53,16 +74,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const idempotencyKey = crypto.randomUUID();
-  const origin = request.nextUrl.origin;
   const provider = getPaymentProvider(parsed.data.provider);
   if (!provider) return apiError("طريقة الدفع دي مش متاحة", null, 400);
-
-  // Land the student back on the thing they bought, not the homepage - only
-  // "course" has a dedicated page today; bundles/subscriptions fall back.
-  const successUrl =
-    order.item_type === "course"
-      ? `${origin}/courses/${order.item_id}?status=success`
-      : `${origin}/?order=${order.id}&status=success`;
 
   let checkout;
   try {

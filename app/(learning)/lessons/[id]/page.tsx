@@ -9,6 +9,7 @@ import { BookmarksPanel } from "./_components/BookmarksPanel";
 import { CommentsSection } from "./_components/CommentsSection";
 import { CourseNavSidebar } from "./_components/CourseNavSidebar";
 import { QuizSection } from "./_components/QuizSection";
+import { ResourcesPanel } from "./_components/ResourcesPanel";
 
 export default async function LessonPage({
   params,
@@ -61,6 +62,15 @@ export default async function LessonPage({
           <div className="mt-6">
             <QuizSection lessonId={id} />
           </div>
+        )}
+
+        {hasAccess && (
+          <section className="mt-8 w-full">
+            <h2 className="text-h3 text-secondary dark:text-white">ملفات الدرس</h2>
+            <div className="mt-4">
+              <ResourcesPanel lessonId={id} />
+            </div>
+          </section>
         )}
 
         {user && (playback.kind === "youtube_protected" || playback.kind === "youtube") && (
