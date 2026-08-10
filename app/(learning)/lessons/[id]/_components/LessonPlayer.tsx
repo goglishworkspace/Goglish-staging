@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { VideoDeterrents } from "./VideoDeterrents";
 import { WatermarkOverlay } from "./WatermarkOverlay";
+import { useVideoTime } from "./VideoTimeContext";
 import { YouTubePlayer } from "@/components/shared/YouTubePlayer";
 import type { LessonPlaybackResult } from "@/lib/services/lesson-playback.service";
 
 export function LessonPlayer({ playback }: { playback: LessonPlaybackResult }) {
+  const { setCurrentTime } = useVideoTime();
+
   if (playback.kind === "login_required") {
     return (
       <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-xl bg-black/90 text-center text-white">
@@ -37,7 +40,7 @@ export function LessonPlayer({ playback }: { playback: LessonPlaybackResult }) {
   if (playback.kind === "youtube") {
     return (
       <VideoDeterrents>
-        <YouTubePlayer videoId={playback.videoId} title="فيديو الدرس" />
+        <YouTubePlayer videoId={playback.videoId} title="فيديو الدرس" onTimeUpdate={setCurrentTime} />
       </VideoDeterrents>
     );
   }
@@ -45,7 +48,7 @@ export function LessonPlayer({ playback }: { playback: LessonPlaybackResult }) {
   return (
     <VideoDeterrents>
       <div className="relative w-full">
-        <YouTubePlayer videoId={playback.videoId} title="فيديو الدرس" />
+        <YouTubePlayer videoId={playback.videoId} title="فيديو الدرس" onTimeUpdate={setCurrentTime} />
         <WatermarkOverlay watermark={playback.watermark} />
       </div>
     </VideoDeterrents>

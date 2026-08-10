@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw, RotateCw, Maximize, Minimize, Settings, Gauge, Volume2, Volume1, VolumeX } from "lucide-react";
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  RotateCw,
+  Maximize,
+  Minimize,
+  Settings,
+  Gauge,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Captions,
+  CaptionsOff,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // YouTube's iframe embed has no parameter that hides only the Share button -
@@ -45,6 +59,9 @@ type YouTubePlayerInstance = {
   mute: () => void;
   unMute: () => void;
   isMuted: () => boolean;
+  loadModule: (module: string) => void;
+  unloadModule: (module: string) => void;
+  setOption: (module: string, option: string, value: unknown) => void;
   destroy: () => void;
 };
 
@@ -96,7 +113,18 @@ function formatTime(totalSeconds: number): string {
   return hours > 0 ? `${hours}:${minutesLabel}:${secondsLabel}` : `${minutesLabel}:${secondsLabel}`;
 }
 
-export function YouTubePlayer({ videoId, title }: { videoId: string; title: string }) {
+export function YouTubePlayer({
+  videoId,
+  title,
+  onTimeUpdate,
+}: {
+  videoId: string;
+  title: string;
+  /** Fires whenever playback position changes (poll while playing, plus every
+   * seek/skip) - lets a sibling section (lesson notes) capture "where in the
+   * video is this note about" without its own player reference. */
+  onTimeUpdate?: (seconds: number) => void;
+}) {
   // Two separate refs on purpose: the YouTube IFrame API replaces its mount
   // element in the DOM with an <iframe> (containerRef.current becomes a
   // detached node after that), so fullscreen must target a stable wrapper
@@ -117,6 +145,11 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [volume, setVolume] = useState(100);
   const [muted, setMuted] = useState(false);
+  const [captionsOn, setCaptionsOn] = useState(false);
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  useEffect(() => {
+    onTimeUpdateRef.current = onTimeUpdate;
+  }, [onTimeUpdate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,8 +201,10 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
     progressIntervalRef.current = window.setInterval(() => {
       const player = playerRef.current;
       if (!player) return;
-      setCurrentTime(player.getCurrentTime());
+      const time = player.getCurrentTime();
+      setCurrentTime(time);
       setDuration(player.getDuration());
+      onTimeUpdateRef.current?.(time);
     }, 250);
     return () => {
       if (progressIntervalRef.current) window.clearInterval(progressIntervalRef.current);
@@ -195,6 +230,7 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
     const target = Math.min(Math.max(0, player.getCurrentTime() + deltaSeconds), duration || Infinity);
     player.seekTo(target, true);
     setCurrentTime(target);
+    onTimeUpdateRef.current?.(target);
   };
 
   const onSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -203,6 +239,20 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
     const time = Number(e.target.value);
     player.seekTo(time, true);
     setCurrentTime(time);
+    onTimeUpdateRef.current?.(time);
+  };
+
+  const toggleCaptions = () => {
+    const player = playerRef.current;
+    if (!player) return;
+    if (captionsOn) {
+      player.unloadModule("captions");
+      setCaptionsOn(false);
+    } else {
+      player.loadModule("captions");
+      player.setOption("captions", "track", {});
+      setCaptionsOn(true);
+    }
   };
 
   const changeSpeed = (newSpeed: number) => {
@@ -389,6 +439,16 @@ export function YouTubePlayer({ videoId, title }: { videoId: string; title: stri
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={toggleCaptions}
+              disabled={!ready}
+              aria-label={captionsOn ? "إخفاء الترجمة" : "إظهار الترجمة"}
+              className={captionsOn ? "text-primary" : "text-white/90"}
+            >
+              {captionsOn ? <Captions className="size-5" /> : <CaptionsOff className="size-5" />}
+            </button>
 
             <button
               type="button"

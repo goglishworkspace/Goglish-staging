@@ -1,22 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { StickyNote, Trash2 } from "lucide-react";
+import { StickyNote, Trash2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useVideoTime } from "./VideoTimeContext";
 import {
   useLessonNotes,
   useCreateLessonNote,
   useDeleteLessonNote,
 } from "@/lib/api/queries/lesson-notes";
-
-function parseTimestamp(value: string): number | null {
-  const match = value.trim().match(/^(\d+):([0-5]?\d)$/);
-  if (!match) return null;
-  return Number(match[1]) * 60 + Number(match[2]);
-}
 
 function formatTimestamp(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -28,20 +23,15 @@ export function NotesPanel({ lessonId }: { lessonId: string }) {
   const { data: notes, isLoading } = useLessonNotes(lessonId);
   const createNote = useCreateLessonNote(lessonId);
   const deleteNote = useDeleteLessonNote(lessonId);
-  const [timestamp, setTimestamp] = useState("0:00");
+  const { currentTime } = useVideoTime();
   const [content, setContent] = useState("");
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const seconds = parseTimestamp(timestamp);
-    if (seconds === null) {
-      toast.error("الوقت لازم يكون بصيغة دقيقة:ثانية، مثال 2:30");
-      return;
-    }
     if (!content.trim()) return;
 
     createNote.mutate(
-      { timestamp_seconds: seconds, content: content.trim() },
+      { timestamp_seconds: Math.floor(currentTime), content: content.trim() },
       {
         onSuccess: () => setContent(""),
         onError: () => toast.error("تعذر إضافة النوتة"),
@@ -52,12 +42,13 @@ export function NotesPanel({ lessonId }: { lessonId: string }) {
   return (
     <div className="flex w-full flex-col gap-4">
       <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-start">
-        <Input
-          value={timestamp}
-          onChange={(e) => setTimestamp(e.target.value)}
-          placeholder="2:30"
-          className="sm:w-24"
-        />
+        <span
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-input px-2.5 text-small tabular-nums text-muted-foreground sm:w-24"
+          title="بياخد وقت الفيديو أول ما تكتب النوتة"
+        >
+          <Clock className="size-3.5" />
+          {formatTimestamp(Math.floor(currentTime))}
+        </span>
         <Input
           value={content}
           onChange={(e) => setContent(e.target.value)}

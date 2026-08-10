@@ -10,13 +10,6 @@ export type LessonNote = {
   updated_at: string;
 };
 
-export type LessonBookmark = {
-  id: string;
-  timestamp_seconds: number;
-  label: string | null;
-  created_at: string;
-};
-
 export function useLessonNotes(lessonId: string) {
   return useQuery({
     queryKey: ["lesson-notes", lessonId],
@@ -46,37 +39,5 @@ export function useDeleteLessonNote(lessonId: string) {
       await api.delete(`/api/lessons/${lessonId}/notes/${noteId}`);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lesson-notes", lessonId] }),
-  });
-}
-
-export function useLessonBookmarks(lessonId: string) {
-  return useQuery({
-    queryKey: ["lesson-bookmarks", lessonId],
-    queryFn: async () => {
-      const { data } = await api.get<ApiSuccess<LessonBookmark[]>>(`/api/lessons/${lessonId}/bookmarks`);
-      return data.data;
-    },
-    enabled: !!lessonId,
-  });
-}
-
-export function useCreateLessonBookmark(lessonId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: { timestamp_seconds: number; label?: string }) => {
-      const { data } = await api.post<ApiSuccess<LessonBookmark>>(`/api/lessons/${lessonId}/bookmarks`, input);
-      return data.data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lesson-bookmarks", lessonId] }),
-  });
-}
-
-export function useDeleteLessonBookmark(lessonId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (bookmarkId: string) => {
-      await api.delete(`/api/lessons/${lessonId}/bookmarks/${bookmarkId}`);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lesson-bookmarks", lessonId] }),
   });
 }

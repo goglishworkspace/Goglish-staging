@@ -5,11 +5,11 @@ import { hasCourseAccess } from "@/lib/services/entitlement.service";
 import { LessonPlayer } from "./_components/LessonPlayer";
 import { ProgressTracker } from "./_components/ProgressTracker";
 import { NotesPanel } from "./_components/NotesPanel";
-import { BookmarksPanel } from "./_components/BookmarksPanel";
 import { CommentsSection } from "./_components/CommentsSection";
 import { CourseNavSidebar } from "./_components/CourseNavSidebar";
 import { QuizSection } from "./_components/QuizSection";
 import { ResourcesPanel } from "./_components/ResourcesPanel";
+import { VideoTimeProvider } from "./_components/VideoTimeContext";
 
 export default async function LessonPage({
   params,
@@ -42,6 +42,7 @@ export default async function LessonPage({
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:flex-row lg:px-8">
       <main className="min-w-0 flex-1">
         <h1 className="mb-4 text-h2 text-secondary dark:text-white">{lesson.title}</h1>
+        <VideoTimeProvider>
         <LessonPlayer playback={playback} />
 
         {user && (playback.kind === "youtube_protected" || playback.kind === "youtube") && (
@@ -53,7 +54,7 @@ export default async function LessonPage({
         {/* Outside view is titles only (Section 9) - the lesson description is
             real course content, so it only shows once the student can
             actually watch this lesson (bought the course, or it's a free
-            preview lesson) - same condition as Notes/Bookmarks below. */}
+            preview lesson) - same condition as Notes below. */}
         {lesson.description && (playback.kind === "youtube_protected" || playback.kind === "youtube") && (
           <p className="mt-4 text-body text-muted-foreground">{lesson.description}</p>
         )}
@@ -74,17 +75,10 @@ export default async function LessonPage({
         )}
 
         {user && (playback.kind === "youtube_protected" || playback.kind === "youtube") && (
-          <>
-            <section className="mt-8 w-full">
-              <h2 className="text-h3 text-secondary dark:text-white">النوتات</h2>
-              <div className="mt-4"><NotesPanel lessonId={id} /></div>
-            </section>
-
-            <section className="mt-8 w-full">
-              <h2 className="text-h3 text-secondary dark:text-white">العلامات المرجعية</h2>
-              <div className="mt-4"><BookmarksPanel lessonId={id} /></div>
-            </section>
-          </>
+          <section className="mt-8 w-full">
+            <h2 className="text-h3 text-secondary dark:text-white">النوتات</h2>
+            <div className="mt-4"><NotesPanel lessonId={id} /></div>
+          </section>
         )}
 
         <section className="mt-8 w-full">
@@ -97,6 +91,7 @@ export default async function LessonPage({
             )}
           </div>
         </section>
+        </VideoTimeProvider>
       </main>
 
       {courseId && (
