@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createTeacherSchema } from "@/lib/validation/teacher.schemas";
 import { userHasAnyRole } from "@/lib/auth/require-role";
+import { getDeletedUserIds } from "@/lib/services/teacher-visibility.service";
 
 const MANAGE_ROLES = ["admin", "super_admin", "support"];
 
@@ -13,7 +14,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("teachers")
     .select(
-      "id, status, created_at, teacher_profiles(display_name, bio, photo_url, experience_years, rating_avg, rating_count)",
+      "id, user_id, status, created_at, teacher_profiles(display_name, bio, photo_url, experience_years, rating_avg, rating_count)",
     )
     .eq("status", "active");
 
@@ -23,7 +24,9 @@ export async function GET() {
   // no display_name until they fill their profile in (create_teacher_profile
   // trigger only sets teacher_id) - exclude those from the public listing so
   // an incomplete profile never reaches the landing page's TeacherCard.
+  const deletedUserIds = await getDeletedUserIds((data ?? []).map((t) => t.user_id));
   const complete = (data ?? []).filter((teacher) => {
+    if (deletedUserIds.has(teacher.user_id)) return false;
     const profile = Array.isArray(teacher.teacher_profiles)
       ? teacher.teacher_profiles[0]
       : teacher.teacher_profiles;

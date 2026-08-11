@@ -4,6 +4,7 @@ import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
 import { updateCourseSchema } from "@/lib/validation/course.schemas";
 import { hasCourseAccess } from "@/lib/services/entitlement.service";
+import { getDeletedUserIds } from "@/lib/services/teacher-visibility.service";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,11 +34,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // never showed up here - inlined instead of an extra client round-trip.
   const { data: teacherRows } = await supabase
     .from("course_teachers")
-    .select("teachers(id, teacher_profiles(display_name))")
+    .select("teachers(id, user_id, teacher_profiles(display_name))")
     .eq("course_id", id);
-  const teachers = (teacherRows ?? [])
-    .map((row) => row.teachers as unknown as { id: string; teacher_profiles: { display_name: string | null } | null } | null)
-    .filter((t): t is NonNullable<typeof t> => !!t)
+  const rawTeachers = (teacherRows ?? [])
+    .map(
+      (row) =>
+        row.teachers as unknown as {
+          id: string;
+          user_id: string;
+          teacher_profiles: { display_name: string | null } | null;
+        } | null,
+    )
+    .filter((t): t is NonNullable<typeof t> => !!t);
+  const deletedUserIds = await getDeletedUserIds(rawTeachers.map((t) => t.user_id));
+  const teachers = rawTeachers
+    .filter((t) => !deletedUserIds.has(t.user_id))
     .map((t) => ({ id: t.id, display_name: t.teacher_profiles?.display_name ?? null }));
 
   return apiSuccess({ ...data, has_access, teachers }, "تم جلب الكورس");

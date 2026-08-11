@@ -4,6 +4,7 @@ import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createCourseSchema } from "@/lib/validation/course.schemas";
+import { getDeletedUserIds } from "@/lib/services/teacher-visibility.service";
 
 export async function GET(request: NextRequest) {
   const subjectId = request.nextUrl.searchParams.get("subject_id");
@@ -48,16 +49,28 @@ async function attachTeachers<T extends { id: string }>(
 
   const { data: rows } = await supabase
     .from("course_teachers")
-    .select("course_id, teachers(id, teacher_profiles(display_name))")
+    .select("course_id, teachers(id, user_id, teacher_profiles(display_name))")
     .in(
       "course_id",
       courses.map((c) => c.id),
     );
 
+  const teacherRows = (rows ?? []).map((row) => ({
+    course_id: row.course_id,
+    teacher: row.teachers as unknown as {
+      id: string;
+      user_id: string;
+      teacher_profiles: { display_name: string | null } | null;
+    } | null,
+  }));
+  const deletedUserIds = await getDeletedUserIds(
+    teacherRows.map((row) => row.teacher?.user_id).filter((id): id is string => !!id),
+  );
+
   const teachersByCourse = new Map<string, { id: string; display_name: string | null }[]>();
-  for (const row of rows ?? []) {
-    const teacher = row.teachers as unknown as { id: string; teacher_profiles: { display_name: string | null } | null } | null;
-    if (!teacher) continue;
+  for (const row of teacherRows) {
+    const teacher = row.teacher;
+    if (!teacher || deletedUserIds.has(teacher.user_id)) continue;
     const list = teachersByCourse.get(row.course_id) ?? [];
     list.push({ id: teacher.id, display_name: teacher.teacher_profiles?.display_name ?? null });
     teachersByCourse.set(row.course_id, list);
