@@ -195,6 +195,36 @@ body {
   }
 }
 
+/* Auth pages (AuthCard) - notebook-ruled-paper texture on the branded panel,
+   and the "امتياز" stamp's settle-in entrance. */
+.auth-ruled-lines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 2.25rem,
+    color-mix(in oklch, var(--color-primary) 14%, transparent) 2.25rem,
+    color-mix(in oklch, var(--color-primary) 14%, transparent) calc(2.25rem + 1px)
+  );
+  mask-image: radial-gradient(ellipse 90% 70% at 35% 35%, black 35%, transparent 85%);
+}
+
+@keyframes auth-stamp-in {
+  from {
+    transform: rotate(-18deg) scale(1.3);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-6deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .auth-stamp {
+    animation: auth-stamp-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

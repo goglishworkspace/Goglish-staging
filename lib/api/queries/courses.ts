@@ -19,9 +19,10 @@ export type Course = {
   created_at: string;
   trailer_youtube_id: string | null;
   teachers: CourseTeacher[];
+  has_access: boolean;
 };
 
-export type CourseDetail = Course & { has_access: boolean };
+export type CourseDetail = Course;
 
 export function useCoursesBySubject(subjectId: string) {
   return useQuery({

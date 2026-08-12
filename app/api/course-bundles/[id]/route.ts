@@ -4,6 +4,13 @@ import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
 import { updateBundleSchema } from "@/lib/validation/bundle.schemas";
 import { userHasAnyRole } from "@/lib/auth/require-role";
+import {
+  hasBundleAccess,
+  grantNewBundleCoursesToExistingBuyers,
+  attachAccessToBundles,
+} from "@/lib/services/entitlement.service";
+import { notifyBundleCoursesAdded } from "@/lib/services/content-notification.service";
+import { attachTeachersToBundles } from "@/lib/services/course-teachers.service";
 
 const MANAGE_ROLES = ["admin", "super_admin", "content_manager"];
 
@@ -13,12 +20,21 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data, error } = await supabase
     .from("course_bundles")
-    .select("*, bundle_courses(course_id, courses(id, title, slug, cover_image_url))")
+    .select("*, bundle_courses(course_id, courses(*))")
     .eq("id", id)
     .maybeSingle();
   if (error) return apiError("تعذر جلب الباقة", null, 500);
   if (!data) return apiError("الباقة غير موجودة", null, 404);
-  return apiSuccess(data, "تم جلب الباقة");
+
+  const [withTeachers] = await attachTeachersToBundles(supabase, [data]);
+  const [withCourseAccess] = await attachAccessToBundles(supabase, [withTeachers]);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const has_access = user ? await hasBundleAccess(supabase, user.id, id) : false;
+
+  return apiSuccess({ ...withCourseAccess, has_access }, "تم جلب الباقة");
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -46,11 +62,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (course_ids) {
+    const { data: existingRows } = await supabase.from("bundle_courses").select("course_id").eq("bundle_id", id);
+    const existingIds = new Set((existingRows ?? []).map((row) => row.course_id));
+    const addedIds = course_ids.filter((courseId) => !existingIds.has(courseId));
+
     await supabase.from("bundle_courses").delete().eq("bundle_id", id);
     const { error: coursesError } = await supabase
       .from("bundle_courses")
       .insert(course_ids.map((course_id) => ({ bundle_id: id, course_id })));
     if (coursesError) return apiError("تعذر تحديث كورسات الباقة", null, 400);
+
+    if (addedIds.length) {
+      await grantNewBundleCoursesToExistingBuyers(id, addedIds);
+      await notifyBundleCoursesAdded(id, addedIds);
+    }
   }
 
   const { data } = await supabase

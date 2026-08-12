@@ -65,7 +65,11 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthCard title="تسجيل الدخول">
+    <AuthCard
+      title="تسجيل الدخول"
+      headline="رجعت تكمل الطريق"
+      subtext="كل مرة تدخل بيها، خطوة جديدة في طريقك للثانوية العامة."
+    >
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <Field label="الإيميل" htmlFor="email" error={errors.email?.message}>
           <Input id="email" type="email" aria-invalid={!!errors.email} {...register("email")} />

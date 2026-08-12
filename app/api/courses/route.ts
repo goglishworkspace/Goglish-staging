@@ -4,7 +4,8 @@ import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createCourseSchema } from "@/lib/validation/course.schemas";
-import { getDeletedUserIds } from "@/lib/services/teacher-visibility.service";
+import { attachTeachers } from "@/lib/services/course-teachers.service";
+import { attachCourseAccess } from "@/lib/services/entitlement.service";
 
 export async function GET(request: NextRequest) {
   const subjectId = request.nextUrl.searchParams.get("subject_id");
@@ -34,49 +35,8 @@ export async function GET(request: NextRequest) {
   if (error) return apiError("تعذر جلب الكورسات", null, 500);
 
   const withTeachers = await attachTeachers(supabase, data ?? []);
-  return apiSuccess(withTeachers, "تم جلب الكورسات");
-}
-
-/** Attaches each course's teacher roster (name/id, for display - "مين بيقدم
- * الكورس ده") via the same two-step M:M lookup style as the teacher_id
- * filter above, rather than an embed - course_teachers isn't a sibling-FK
- * situation PostgREST can embed directly off `courses`. */
-async function attachTeachers<T extends { id: string }>(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  courses: T[],
-): Promise<Array<T & { teachers: { id: string; display_name: string | null }[] }>> {
-  if (!courses.length) return [];
-
-  const { data: rows } = await supabase
-    .from("course_teachers")
-    .select("course_id, teachers(id, user_id, teacher_profiles(display_name))")
-    .in(
-      "course_id",
-      courses.map((c) => c.id),
-    );
-
-  const teacherRows = (rows ?? []).map((row) => ({
-    course_id: row.course_id,
-    teacher: row.teachers as unknown as {
-      id: string;
-      user_id: string;
-      teacher_profiles: { display_name: string | null } | null;
-    } | null,
-  }));
-  const deletedUserIds = await getDeletedUserIds(
-    teacherRows.map((row) => row.teacher?.user_id).filter((id): id is string => !!id),
-  );
-
-  const teachersByCourse = new Map<string, { id: string; display_name: string | null }[]>();
-  for (const row of teacherRows) {
-    const teacher = row.teacher;
-    if (!teacher || deletedUserIds.has(teacher.user_id)) continue;
-    const list = teachersByCourse.get(row.course_id) ?? [];
-    list.push({ id: teacher.id, display_name: teacher.teacher_profiles?.display_name ?? null });
-    teachersByCourse.set(row.course_id, list);
-  }
-
-  return courses.map((course) => ({ ...course, teachers: teachersByCourse.get(course.id) ?? [] }));
+  const withAccess = await attachCourseAccess(supabase, withTeachers);
+  return apiSuccess(withAccess, "تم جلب الكورسات");
 }
 
 export async function POST(request: NextRequest) {

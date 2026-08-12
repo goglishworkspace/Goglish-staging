@@ -56,10 +56,23 @@ export function isCommentNotification(notification: Notification): boolean {
   return COMMENT_NOTIFICATION_TYPES.has(notification.type);
 }
 
-export function commentNotificationHref(notification: Notification): string | null {
-  if (!isCommentNotification(notification)) return null;
-  const lessonId = notification.metadata?.lesson_id;
-  const commentId = notification.metadata?.comment_id;
-  if (typeof lessonId !== "string" || typeof commentId !== "string") return null;
-  return `/lessons/${lessonId}?comment=${commentId}`;
+export function notificationHref(notification: Notification): string | null {
+  if (isCommentNotification(notification)) {
+    const lessonId = notification.metadata?.lesson_id;
+    const commentId = notification.metadata?.comment_id;
+    if (typeof lessonId !== "string" || typeof commentId !== "string") return null;
+    return `/lessons/${lessonId}?comment=${commentId}`;
+  }
+
+  if (notification.type === "new_lesson") {
+    const lessonId = notification.metadata?.lesson_id;
+    return typeof lessonId === "string" ? `/lessons/${lessonId}` : null;
+  }
+
+  if (notification.type === "new_course_in_bundle") {
+    const bundleId = notification.metadata?.bundle_id;
+    return typeof bundleId === "string" ? `/bundles/${bundleId}` : null;
+  }
+
+  return null;
 }

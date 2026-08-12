@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { PlayCircle, ShoppingCart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { Course } from "@/lib/api/queries/courses";
 
 export function CourseCard({ course, showTeacher = true }: { course: Course; showTeacher?: boolean }) {
@@ -41,6 +44,22 @@ export function CourseCard({ course, showTeacher = true }: { course: Course; sho
               ? "مجاني"
               : `${(course.price_cents / 100).toLocaleString("ar-EG")} ${course.currency}`}
           </p>
+          {/* A styled <span>, not a nested <Button> - the whole card is
+              already one <Link>, and an interactive element can't nest
+              inside another without breaking the DOM/a11y tree. */}
+          <span className={cn(buttonVariants({ variant: course.has_access ? "default" : "outline" }), "mt-1 w-full justify-center")}>
+            {course.has_access ? (
+              <>
+                <PlayCircle />
+                إكمال التعلم
+              </>
+            ) : (
+              <>
+                <ShoppingCart />
+                اشتراك
+              </>
+            )}
+          </span>
         </CardContent>
       </Card>
     </Link>

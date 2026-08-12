@@ -19,6 +19,7 @@ import { postJson } from "@/lib/api/client-fetch";
 
 const NAV_LINKS = [
   { href: "#teachers", label: "المدرسون" },
+  { href: "/bundles", label: "الباقات" },
   { href: "/leaderboard", label: "الصدارة" },
   { href: "/achievements", label: "الإنجازات" },
   { href: "/honor-board", label: "لوحة الشرف" },

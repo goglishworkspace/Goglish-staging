@@ -9,7 +9,7 @@ import {
   useNotifications,
   useMarkNotificationRead,
   useRespondToParentLinkRequest,
-  commentNotificationHref,
+  notificationHref,
   type Notification,
 } from "@/lib/api/queries/notifications";
 
@@ -65,7 +65,7 @@ function NotificationCard({ notification }: { notification: Notification }) {
 
 function NotificationRow({ notification }: { notification: Notification }) {
   const markRead = useMarkNotificationRead();
-  const href = commentNotificationHref(notification);
+  const href = notificationHref(notification);
 
   const onOpen = () => {
     if (!notification.read_at) markRead.mutate(notification.id);

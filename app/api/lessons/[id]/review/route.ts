@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { reviewContentSchema } from "@/lib/validation/content-workflow.schemas";
 import { reviewContent } from "@/lib/services/content-workflow.service";
 import { userHasAnyRole } from "@/lib/auth/require-role";
+import { notifyNewLessonPublished } from "@/lib/services/content-notification.service";
 
 const REVIEW_ROLES = ["admin", "super_admin", "moderator", "content_manager"];
 
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   ).catch(() => null);
 
   if (!data) return apiError("الدرس غير موجود", null, 404);
+
+  if (parsed.data.decision === "published") await notifyNewLessonPublished(id);
+
   return apiSuccess(
     data,
     parsed.data.decision === "published" ? "تم نشر الدرس" : "تم رفض الدرس",

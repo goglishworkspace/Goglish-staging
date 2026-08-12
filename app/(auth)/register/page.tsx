@@ -154,7 +154,11 @@ function RegisterPageContent() {
   };
 
   return (
-    <AuthCard title="إنشاء حساب جديد">
+    <AuthCard
+      title="إنشاء حساب جديد"
+      headline="افتح أول صفحة في دفترك"
+      subtext="سجّل دلوقتي وابدأ ذاكر مع آلاف الطلاب على Goglish."
+    >
       {step === 1 ? (
         <div className="flex flex-col gap-5">
           <div className="flex gap-3">

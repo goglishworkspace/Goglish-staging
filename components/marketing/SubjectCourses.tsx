@@ -2,8 +2,10 @@
 
 import { useSubject } from "@/lib/api/queries/subjects";
 import { useCoursesBySubject } from "@/lib/api/queries/courses";
+import { useBundlesBySubject } from "@/lib/api/queries/bundles";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CourseCard } from "@/components/marketing/CourseCard";
+import { BundleCard } from "@/components/marketing/BundleCard";
 
 /** Shared between the public catalog (app/(marketing)/subjects/[id]) and the
  * logged-in student dashboard's own subjects browsing
@@ -11,6 +13,7 @@ import { CourseCard } from "@/components/marketing/CourseCard";
 export function SubjectCourses({ subjectId }: { subjectId: string }) {
   const { data: subject, isLoading: subjectLoading, isError } = useSubject(subjectId);
   const { data: courses, isLoading: coursesLoading } = useCoursesBySubject(subjectId);
+  const { data: bundles, isLoading: bundlesLoading } = useBundlesBySubject(subjectId);
 
   if (isError) {
     return (
@@ -26,6 +29,17 @@ export function SubjectCourses({ subjectId }: { subjectId: string }) {
         <Skeleton className="h-9 w-64" />
       ) : (
         <h1 className="text-h2 text-secondary dark:text-white">{subject?.name}</h1>
+      )}
+
+      {(bundlesLoading || !!bundles?.length) && (
+        <>
+          <h2 className="mt-8 text-h3 text-secondary dark:text-white">الباقات</h2>
+          <div className="mt-4 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {bundlesLoading &&
+              Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-56 w-full rounded-xl" />)}
+            {!bundlesLoading && bundles?.map((bundle) => <BundleCard key={bundle.id} bundle={bundle} />)}
+          </div>
+        </>
       )}
 
       <h2 className="mt-8 text-h3 text-secondary dark:text-white">الكورسات</h2>
