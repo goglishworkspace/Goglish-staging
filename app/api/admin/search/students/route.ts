@@ -21,11 +21,16 @@ export async function GET(request: NextRequest) {
     return apiError("مش مسموح لك بالإجراء ده", null, 403);
   }
 
+  // PostgREST's .or() string syntax treats "," "(" ")" as filter syntax
+  // (condition separator / grouping) - escaping them keeps a search term
+  // containing those characters a literal match instead of letting it inject
+  // extra filter conditions.
+  const safeQ = q.replace(/[,()]/g, "\\$&");
   const { data, error } = await supabase
     .from("profiles")
     .select("id, first_name, last_name, grade")
     .is("deleted_at", null)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+    .or(`first_name.ilike.%${safeQ}%,last_name.ilike.%${safeQ}%`)
     .limit(20);
   if (error) return apiError("تعذر البحث عن الطلاب", null, 500);
   return apiSuccess(data, "نتائج البحث");

@@ -84,13 +84,22 @@ export async function fulfillPaymentEvent(params: {
     return;
   }
 
-  // status === "completed" - fulfil the order.
+  // status === "completed" - fulfil the order BEFORE marking the payment
+  // completed. The early-return above treats a "completed" payment as
+  // already handled, so marking it completed first meant a retry after
+  // fulfillOrder() failed partway (invoice storage, access grant, ...) would
+  // hit that early-return and skip fulfillment forever, even though the
+  // student was charged. Fulfilling first means a failure here leaves the
+  // payment in its prior status, so the next webhook delivery or the hourly
+  // reconciliation job retries the whole thing - safe since every step
+  // inside fulfillOrder() is upsert/idempotent per its own comment.
+  await fulfillOrder(payment.order_id);
+
   await admin
     .from("payments")
     .update({ status: "completed", completed_at: new Date().toISOString(), failure_reason: null })
     .eq("id", payment.id);
 
-  await fulfillOrder(payment.order_id);
   await markEventProcessed(params.eventRowId);
 }
 

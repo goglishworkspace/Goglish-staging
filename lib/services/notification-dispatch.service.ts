@@ -24,3 +24,29 @@ export async function dispatchNotification(payload: NotificationPayload): Promis
     await getNotificationChannel(channel).send(payload);
   }
 }
+
+const DEFAULT_FANOUT_CONCURRENCY = 20;
+
+/** Fans a notification out to many users (announcements, "new lesson in your
+ * course", "new course in your bundle") capped at a fixed concurrency,
+ * instead of firing every dispatchNotification() call at once - each one
+ * does its own notification_preferences query plus up to 4 channel sends, so
+ * an unbounded Promise.all() over hundreds/thousands of recipients can
+ * exhaust the DB connection pool under load. A worker pool of `concurrency`
+ * pulls from the shared list until it's drained, rather than batching in
+ * fixed-size chunks, so a few slow sends never stall the rest of the batch
+ * behind them. */
+export async function dispatchNotificationToMany(
+  userIds: string[],
+  payload: Omit<NotificationPayload, "userId">,
+  concurrency: number = DEFAULT_FANOUT_CONCURRENCY,
+): Promise<void> {
+  let index = 0;
+  async function worker(): Promise<void> {
+    while (index < userIds.length) {
+      const userId = userIds[index++];
+      await dispatchNotification({ ...payload, userId });
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, userIds.length) }, worker));
+}

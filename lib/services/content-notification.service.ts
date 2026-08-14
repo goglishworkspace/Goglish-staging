@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { dispatchNotification } from "./notification-dispatch.service";
+import { dispatchNotificationToMany } from "./notification-dispatch.service";
 
 /** Notifies every student with access to a course when one of its lessons
  * is published - a draft/rejected lesson isn't visible to anyone yet, so
@@ -27,17 +27,12 @@ export async function notifyNewLessonPublished(lessonId: string): Promise<void> 
     .eq("course_id", course.id)
     .is("revoked_at", null);
 
-  await Promise.all(
-    (entitlements ?? []).map((entitlement) =>
-      dispatchNotification({
-        userId: entitlement.user_id,
-        type: "new_lesson",
-        title: `درس جديد في ${course.title}`,
-        body: lesson.title,
-        metadata: { course_id: course.id, lesson_id: lesson.id },
-      }),
-    ),
-  );
+  await dispatchNotificationToMany((entitlements ?? []).map((entitlement) => entitlement.user_id), {
+    type: "new_lesson",
+    title: `درس جديد في ${course.title}`,
+    body: lesson.title,
+    metadata: { course_id: course.id, lesson_id: lesson.id },
+  });
 }
 
 /** Notifies every student who bought a bundle when new courses are added to
@@ -63,15 +58,10 @@ export async function notifyBundleCoursesAdded(bundleId: string, newCourseIds: s
     .eq("status", "completed");
   const buyerIds = [...new Set((orders ?? []).map((order) => order.user_id))];
 
-  await Promise.all(
-    buyerIds.map((userId) =>
-      dispatchNotification({
-        userId,
-        type: "new_course_in_bundle",
-        title: `كورس جديد في باقة ${bundle.title}`,
-        body: courseNames,
-        metadata: { bundle_id: bundleId, course_ids: newCourseIds },
-      }),
-    ),
-  );
+  await dispatchNotificationToMany(buyerIds, {
+    type: "new_course_in_bundle",
+    title: `كورس جديد في باقة ${bundle.title}`,
+    body: courseNames,
+    metadata: { bundle_id: bundleId, course_ids: newCourseIds },
+  });
 }

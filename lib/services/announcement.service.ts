@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { dispatchNotification } from "./notification-dispatch.service";
+import { dispatchNotificationToMany } from "./notification-dispatch.service";
 
 /** Creates the announcement then fans it out as a notification to every
  * matching user (Section 10 - simple synchronous fan-out, no queue system,
@@ -35,17 +35,12 @@ export async function createAnnouncementAndNotify(params: {
   if (params.target === "grade") query = query.eq("grade", params.targetGrade);
   const { data: recipients } = await query;
 
-  await Promise.all(
-    (recipients ?? []).map((recipient) =>
-      dispatchNotification({
-        userId: recipient.id,
-        type: "announcement",
-        title: params.title,
-        body: params.body,
-        metadata: { announcement_id: announcement.id },
-      }),
-    ),
-  );
+  await dispatchNotificationToMany((recipients ?? []).map((recipient) => recipient.id), {
+    type: "announcement",
+    title: params.title,
+    body: params.body,
+    metadata: { announcement_id: announcement.id },
+  });
 
   return announcement;
 }

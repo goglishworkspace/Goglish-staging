@@ -43,10 +43,20 @@ export async function POST(request: NextRequest) {
   const amountCents = parsed.data.amount_cents ?? payment.amount_cents;
   const provider = getPaymentProvider(payment.provider);
   if (!provider) return apiError("طريقة الدفع دي مش متاحة", null, 400);
-  const refundResult = await provider.refund({
-    providerPaymentId: payment.provider_payment_id ?? "",
-    amountCents,
-  });
+
+  let refundResult;
+  try {
+    refundResult = await provider.refund({
+      providerPaymentId: payment.provider_payment_id ?? "",
+      amountCents,
+    });
+  } catch (error) {
+    // Same reasoning as orders/[id]/pay/route.ts's createCheckout try/catch -
+    // a provider call can throw (network failure, gateway rejection), and
+    // without this it escapes as a raw non-JSON 500 the admin UI can't parse.
+    console.error(`payment provider "${payment.provider}" refund failed for payment ${payment.id}`, error);
+    return apiError("تعذر تنفيذ الاسترجاع، حاول تاني كمان شوية", null, 502);
+  }
 
   const { data: refund, error: refundError } = await admin
     .from("refunds")
