@@ -34,6 +34,14 @@ const DEVTOOLS_POLL_MS = 1000;
  * window resizes (e.g. dragging between monitors with different DPI), which
  * would cause an unexpected reload and lose any unsaved input on the page -
  * a real tradeoff of this approach, not a bug.
+ *
+ * Desktop-only (`pointer: coarse` = touch devices are excluded): the concept
+ * doesn't apply on mobile at all (no resizable DevTools panel to detect),
+ * and the heuristic actively misfires there - iOS Safari's address bar/
+ * toolbar collapse on scroll and the virtual keyboard both swing innerHeight
+ * relative to outerHeight far past DEVTOOLS_SIZE_THRESHOLD, which was
+ * reloading the page mid-browse on iPhone (reported: page "keeps reloading
+ * every so often" on iPhone, with no repro on desktop).
  */
 export function GlobalDeterrents() {
   const previousOpenRef = useRef<boolean | null>(null);
@@ -49,26 +57,30 @@ export function GlobalDeterrents() {
       if (isDevToolsShortcut) e.preventDefault();
     };
 
-    const checkDevToolsOpen = () => {
-      const widthDiff = window.outerWidth - window.innerWidth;
-      const heightDiff = window.outerHeight - window.innerHeight;
-      const open = widthDiff > DEVTOOLS_SIZE_THRESHOLD || heightDiff > DEVTOOLS_SIZE_THRESHOLD;
-
-      if (previousOpenRef.current === false && open) {
-        window.location.reload();
-        return;
-      }
-      previousOpenRef.current = open;
-    };
-
     document.addEventListener("contextmenu", onContextMenu);
     window.addEventListener("keydown", onKeyDown);
-    const interval = window.setInterval(checkDevToolsOpen, DEVTOOLS_POLL_MS);
+
+    let interval: number | undefined;
+    if (!window.matchMedia("(pointer: coarse)").matches) {
+      const checkDevToolsOpen = () => {
+        const widthDiff = window.outerWidth - window.innerWidth;
+        const heightDiff = window.outerHeight - window.innerHeight;
+        const open = widthDiff > DEVTOOLS_SIZE_THRESHOLD || heightDiff > DEVTOOLS_SIZE_THRESHOLD;
+
+        if (previousOpenRef.current === false && open) {
+          window.location.reload();
+          return;
+        }
+        previousOpenRef.current = open;
+      };
+
+      interval = window.setInterval(checkDevToolsOpen, DEVTOOLS_POLL_MS);
+    }
 
     return () => {
       document.removeEventListener("contextmenu", onContextMenu);
       window.removeEventListener("keydown", onKeyDown);
-      window.clearInterval(interval);
+      if (interval !== undefined) window.clearInterval(interval);
     };
   }, []);
 
