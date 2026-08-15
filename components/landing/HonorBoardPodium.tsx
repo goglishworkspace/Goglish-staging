@@ -1,8 +1,17 @@
+import { Cormorant_Garamond } from "next/font/google";
 import { Crown } from "lucide-react";
 import { AvatarImage } from "@/components/shared/AvatarImage";
 import { cn } from "@/lib/utils";
-import { royalSerif } from "@/lib/fonts";
 import type { LeaderboardEntry } from "@/lib/api/queries/honor-board";
+
+// A serif reserved for numerals/figures - engraved-plaque ranks here, and
+// the homepage hero's trust-strip stat - deliberately not used for any
+// running text (Cairo covers everything else). Latin-only glyphs.
+// Declared locally in each file that uses it (not a shared lib/fonts.ts
+// export) - sharing one next/font instance across two component files
+// broke Turbopack's production build (a "Module not found" resolving the
+// font's generated CSS, only reproducible on `next build`, not `next dev`).
+const royalSerif = Cormorant_Garamond({ weight: ["600", "700"], subsets: ["latin"] });
 
 // Visual left-to-right order for a classic Olympic-style podium (2nd, 1st,
 // 3rd) - a spatial/graphic convention, so it stays the same regardless of
