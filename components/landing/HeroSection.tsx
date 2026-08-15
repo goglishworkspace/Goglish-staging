@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { GraduationCap, BookOpenCheck, Timer, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "./Reveal";
+import { HeroTeacherCount } from "./HeroTeacherCount";
 
 const FEATURE_BADGES = [
   { icon: BookOpenCheck, label: "شرح واضح لكل درس" },
@@ -10,55 +12,79 @@ const FEATURE_BADGES = [
 
 export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
   return (
-    <section className="w-full px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-      <div className="mx-auto grid w-full max-w-7xl items-center gap-12 lg:grid-cols-2">
+    <section className="relative w-full overflow-hidden px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <div className="hero-ruled-lines pointer-events-none absolute inset-0" aria-hidden />
+      <div
+        className="pointer-events-none absolute top-0 left-1/2 size-[36rem] -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/10 blur-3xl"
+        aria-hidden
+      />
+
+      <div className="relative mx-auto grid w-full max-w-7xl items-center gap-12 lg:grid-cols-2">
         <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-start">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-small font-medium text-secondary dark:text-primary">
-            <GraduationCap className="size-4" />
-            منصة Goglish التعليمية
-          </span>
+          <Reveal>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-small font-medium text-secondary dark:text-primary">
+              <GraduationCap className="size-4" />
+              منصة Goglish التعليمية
+            </span>
+          </Reveal>
 
-          <h1 className="max-w-xl text-h1 text-secondary dark:text-white">Goglish</h1>
-          <p className="max-w-xl text-h3 text-secondary dark:text-white">
-            ذاكر صح...وادخل الامتحان وانت واثق 🎓
-          </p>
-          <p className="max-w-md text-body text-muted-foreground">
-            شرح واضح، تدريبات ضخمة، امتحانات - ومنافسة حقيقية مع زملائك في كل مصر.
-          </p>
+          <Reveal delayMs={80}>
+            <h1 className="max-w-xl text-4xl leading-tight font-black text-secondary sm:text-5xl dark:text-white">
+              ذاكر صح<span className="text-primary">...</span>
+              <br />
+              وادخل الامتحان وانت واثق
+            </h1>
+          </Reveal>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {isLoggedIn ? (
-              <Button size="lg" nativeButton={false} render={<Link href="/profile" />}>
-                اذهب لحسابك
-              </Button>
-            ) : (
-              <>
-                <Button size="lg" nativeButton={false} render={<Link href="/register" />}>
-                  ابدأ الآن
+          <Reveal delayMs={160}>
+            <p className="max-w-md text-body text-muted-foreground">
+              شرح واضح، تدريبات ضخمة، امتحانات - ومنافسة حقيقية مع زملائك في كل مصر.
+            </p>
+          </Reveal>
+
+          <Reveal delayMs={240}>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {isLoggedIn ? (
+                <Button size="lg" nativeButton={false} render={<Link href="/profile" />}>
+                  اذهب لحسابك
                 </Button>
-                <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/login" />}>
-                  تسجيل الدخول
-                </Button>
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <Button size="lg" nativeButton={false} render={<Link href="/register" />}>
+                    ابدأ الآن
+                  </Button>
+                  <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/login" />}>
+                    تسجيل الدخول
+                  </Button>
+                </>
+              )}
+            </div>
+          </Reveal>
 
-          <div className="flex flex-wrap justify-center gap-2 lg:justify-start">
-            {FEATURE_BADGES.map(({ icon: Icon, label }) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-small text-foreground"
-              >
-                <Icon className="size-3.5 text-primary" />
-                {label}
-              </span>
-            ))}
-          </div>
+          <Reveal delayMs={320}>
+            <div className="flex flex-wrap justify-center gap-2 lg:justify-start">
+              {FEATURE_BADGES.map(({ icon: Icon, label }) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-small text-foreground"
+                >
+                  <Icon className="size-3.5 text-primary" />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </Reveal>
+
+          <Reveal delayMs={400}>
+            <HeroTeacherCount />
+          </Reveal>
         </div>
 
-        <div className="flex justify-center">
-          <HeroIllustration />
-        </div>
+        <Reveal delayMs={200} className="flex justify-center">
+          <div className="hero-float">
+            <HeroIllustration />
+          </div>
+        </Reveal>
       </div>
     </section>
   );

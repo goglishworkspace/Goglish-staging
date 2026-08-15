@@ -9,9 +9,9 @@ export function TeacherCard({ teacher }: { teacher: Teacher }) {
 
   return (
     <Link href={`/teachers/${teacher.id}`} className="block w-36 shrink-0 sm:w-40">
-      <Card className="items-center py-5 transition-shadow hover:shadow-md">
+      <Card className="items-center py-5 transition-all hover:-translate-y-0.5 hover:shadow-lg">
         <CardContent className="flex flex-col items-center gap-3 text-center">
-          <span className="flex size-20 shrink-0 items-center justify-center rounded-full bg-primary p-[3px]">
+          <span className="flex size-20 shrink-0 items-center justify-center rounded-full bg-primary p-[3px] shadow-[0_0_20px_-6px_rgba(245,197,24,0.7)]">
             <AvatarImage
               src={profile.photo_url}
               initials={profile.display_name.charAt(0)}

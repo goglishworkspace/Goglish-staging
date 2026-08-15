@@ -3,8 +3,6 @@ import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyFileMagicBytes, hasMagicByteSignature } from "./file-validation.service";
 
-const SIGNED_URL_TTL_SECONDS = 15 * 60;
-
 export class MediaValidationError extends Error {}
 
 const TYPE_BY_MIME: Record<string, "image" | "pdf" | "audio" | "zip"> = {
@@ -65,14 +63,16 @@ export async function listMediaFiles() {
   const { data, error } = await admin.from("media_files").select("*").order("created_at", { ascending: false });
   if (error) throw error;
 
-  return Promise.all(
-    (data ?? []).map(async (file) => {
-      const { data: signed } = await admin.storage
-        .from(file.storage_bucket)
-        .createSignedUrl(file.storage_path, SIGNED_URL_TTL_SECONDS);
-      return { ...file, url: signed?.signedUrl ?? null };
-    }),
-  );
+  // The "media" bucket is public (Section 17 - everything in it is meant to
+  // be pasted as a permanent link into a public field: course/bundle covers,
+  // teacher photos, banners), so this is a stable URL, not a signed one that
+  // would expire minutes after being copied into one of those fields.
+  return (data ?? []).map((file) => {
+    const {
+      data: { publicUrl },
+    } = admin.storage.from(file.storage_bucket).getPublicUrl(file.storage_path);
+    return { ...file, url: publicUrl };
+  });
 }
 
 export async function renameMediaFile(id: string, newName: string) {

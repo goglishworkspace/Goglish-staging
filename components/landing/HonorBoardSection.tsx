@@ -5,15 +5,20 @@ import { ChevronLeft } from "lucide-react";
 import { useHonorBoard } from "@/lib/api/queries/honor-board";
 import { HonorBoardPodium } from "./HonorBoardPodium";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Reveal } from "./Reveal";
+import { SectionEyebrow } from "./SectionEyebrow";
 
 export function HonorBoardSection() {
   const { data: entries, isLoading, isError } = useHonorBoard(3);
 
   return (
     <section id="honor-board" className="w-full px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-3xl">
+      <Reveal className="mx-auto w-full max-w-3xl">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-h2 text-secondary dark:text-white">لوحة الشرف</h2>
+          <div className="flex flex-col gap-1">
+            <SectionEyebrow>الأبطال</SectionEyebrow>
+            <h2 className="text-h2 text-secondary dark:text-white">لوحة الشرف</h2>
+          </div>
           <Link
             href="/honor-board"
             className="flex items-center gap-1 text-small font-medium text-info hover:underline"
@@ -33,7 +38,7 @@ export function HonorBoardSection() {
 
           {!isLoading && !isError && !!entries?.length && <HonorBoardPodium entries={entries} />}
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }

@@ -225,6 +225,45 @@ body {
   }
 }
 
+/* Marketing homepage (HeroSection/CtaSection) - same faint ruled-notebook
+   texture as the auth pages, radiating from top-center instead of the auth
+   panel's corner so it works as a full-width section backdrop on either a
+   plain or a navy background (color-mix against currentColor stays visible
+   on both). One consistent "exam paper" signature bookends the whole
+   marketing -> auth journey. */
+.hero-ruled-lines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 2.25rem,
+    color-mix(in oklch, var(--color-primary) 12%, transparent) 2.25rem,
+    color-mix(in oklch, var(--color-primary) 12%, transparent) calc(2.25rem + 1px)
+  );
+  mask-image: radial-gradient(ellipse 70% 65% at 50% 0%, black 25%, transparent 75%);
+}
+
+/* Hero illustration - a slow ambient float, not a page-load flourish, so it
+   reads as "alive" without competing with the entrance stagger above it.
+   Plain class + media query (not a Tailwind motion-safe:animate-[...]
+   arbitrary utility) - that arbitrary-value form silently produces no CSS
+   rule in this project's Tailwind v4 build, same issue already hit and
+   worked around for the auth stamp's rotation. */
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-float {
+    animation: hero-float 6s ease-in-out infinite;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

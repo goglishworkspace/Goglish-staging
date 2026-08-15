@@ -4,6 +4,8 @@ import { useFeaturedVideo } from "@/lib/api/queries/homepage";
 import { YouTubePlayer } from "@/components/shared/YouTubePlayer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { extractYouTubeId } from "@/lib/utils";
+import { Reveal } from "./Reveal";
+import { SectionEyebrow } from "./SectionEyebrow";
 
 export function FeaturedVideoSection() {
   const { data, isLoading } = useFeaturedVideo();
@@ -15,13 +17,19 @@ export function FeaturedVideoSection() {
 
   return (
     <section className="w-full px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-4xl">
+      <Reveal className="mx-auto w-full max-w-4xl">
+        <div className="mb-6 flex flex-col items-center gap-1 text-center">
+          <SectionEyebrow>نظرة سريعة</SectionEyebrow>
+          <h2 className="text-h2 text-secondary dark:text-white">اتفرج قبل ما تبدأ</h2>
+        </div>
         {isLoading ? (
           <Skeleton className="aspect-video w-full rounded-xl" />
         ) : (
-          <YouTubePlayer videoId={videoId!} title="فيديو تعريفي عن Goglish" />
+          <div className="overflow-hidden rounded-2xl ring-1 ring-border">
+            <YouTubePlayer videoId={videoId!} title="فيديو تعريفي عن Goglish" />
+          </div>
         )}
-      </div>
+      </Reveal>
     </section>
   );
 }

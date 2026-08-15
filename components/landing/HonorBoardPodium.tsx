@@ -1,13 +1,8 @@
-import { Cormorant_Garamond } from "next/font/google";
 import { Crown } from "lucide-react";
 import { AvatarImage } from "@/components/shared/AvatarImage";
 import { cn } from "@/lib/utils";
+import { royalSerif } from "@/lib/fonts";
 import type { LeaderboardEntry } from "@/lib/api/queries/honor-board";
-
-// A serif reserved for this one moment - engraved-plaque numerals and XP
-// figures, deliberately not used anywhere else on the site (Cairo covers
-// everything else). Latin-only: it only ever renders digits/roman numerals.
-const royalSerif = Cormorant_Garamond({ weight: ["600", "700"], subsets: ["latin"] });
 
 // Visual left-to-right order for a classic Olympic-style podium (2nd, 1st,
 // 3rd) - a spatial/graphic convention, so it stays the same regardless of

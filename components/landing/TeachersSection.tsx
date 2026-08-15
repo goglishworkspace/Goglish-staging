@@ -7,6 +7,8 @@ import { useTeachers } from "@/lib/api/queries/teachers";
 import { TeacherCard } from "./TeacherCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "./Reveal";
+import { SectionEyebrow } from "./SectionEyebrow";
 
 const VISIBLE_CARDS = 5;
 const SCROLL_CARDS = 4;
@@ -40,9 +42,12 @@ export function TeachersSection() {
 
   return (
     <section id="teachers" className="w-full bg-muted/30 px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-7xl">
+      <Reveal className="mx-auto w-full max-w-7xl">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-h2 text-secondary dark:text-white">مدرسونا</h2>
+          <div className="flex flex-col gap-1">
+            <SectionEyebrow>الفريق</SectionEyebrow>
+            <h2 className="text-h2 text-secondary dark:text-white">مدرسونا</h2>
+          </div>
           {!isLoading && !isError && !!teachers?.length && (
             <div className="flex items-center gap-3">
               <Link
@@ -105,7 +110,7 @@ export function TeachersSection() {
             !isError &&
             teachers?.map((teacher) => <TeacherCard key={teacher.id} teacher={teacher} />)}
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }

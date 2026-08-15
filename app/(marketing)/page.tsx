@@ -32,8 +32,8 @@ export default async function HomePage() {
       <TeachersSection />
       <FeaturedVideoSection />
       <HonorBoardSection />
-      <section className="w-full bg-muted/30 px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-2xl">
+      <section className="w-full px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-3xl">
           <CtaSection isLoggedIn={!!user} />
         </div>
       </section>
