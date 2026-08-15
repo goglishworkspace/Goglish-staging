@@ -61,6 +61,7 @@ export const selfRegisterSchema = z
     first_name: z.string().trim().min(1, "الاسم الأول مطلوب"),
     last_name: z.string().trim().min(1, "الاسم الأخير مطلوب"),
     email: z.email("إيميل غير صالح"),
+    confirm_email: z.string().trim().min(1, "تأكيد الإيميل مطلوب"),
     phone: z.string().trim().min(1, "رقم الهاتف مطلوب"),
     password,
     confirm_password: z.string(),
@@ -71,6 +72,16 @@ export const selfRegisterSchema = z
   .refine((data) => data.password === data.confirm_password, {
     message: "الباسورد وتأكيد الباسورد مش متطابقين",
     path: ["confirm_password"],
+  })
+  // Catches a typo'd own-email at signup time (e.g. "elngrgg" vs
+  // "elngargg") that a format check alone can't - the domain is still
+  // perfectly valid, so the user just never gets the confirmation email
+  // and has no idea why. Retyping (not copy-pasting, see the register
+  // page's onPaste guard on this field) makes the same typo landing twice
+  // very unlikely.
+  .refine((data) => data.email === data.confirm_email, {
+    message: "الإيميل وتأكيد الإيميل مش متطابقين",
+    path: ["confirm_email"],
   })
   .superRefine((data, ctx) => {
     if (data.role_type === "student") {

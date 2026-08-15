@@ -210,6 +210,19 @@ function RegisterPageContent() {
             <Input id="email" type="email" aria-invalid={!!errors.email} {...register("email")} />
           </Field>
 
+          <Field label="تأكيد الإيميل" htmlFor="confirm_email" error={errors.confirm_email?.message}>
+            <Input
+              id="confirm_email"
+              type="email"
+              aria-invalid={!!errors.confirm_email}
+              onPaste={(e) => e.preventDefault()}
+              {...register("confirm_email")}
+            />
+            <p className="text-caption text-muted-foreground">
+              مينفعش تلزق هنا، اكتبه تاني يدوي عشان نتأكد إنك مكتبوش غلط
+            </p>
+          </Field>
+
           {roleType === "student" && (
             <Field label="الرقم القومي" htmlFor="national_id" error={errors.national_id?.message}>
               <Input
