@@ -4,6 +4,7 @@ import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit, resetRateLimit, getClientIp, LOGIN_FAILURE_RATE_LIMIT } from "@/lib/services/rate-limit.service";
 import {
   getOrCreateDeviceId,
   computeDeviceFingerprint,
@@ -60,6 +61,25 @@ export async function POST(request: NextRequest) {
   // parse that, so the login button stayed stuck on its loading state
   // forever with no explanation shown to the user.
   try {
+    const ip = getClientIp(request);
+    // Keyed by IP+email (not IP alone, unlike the loose middleware gate) -
+    // so guessing one account's password only throttles attempts against
+    // that account, and can't lock out other users sharing the same IP
+    // (a school/home network, for example). Checked *before* the real
+    // signInWithPassword() call below so it actually blocks further guesses
+    // rather than just relabeling the response after Supabase already did
+    // the real password check.
+    const loginFailureKey = `login-fail:${ip}:${parsed.data.email.toLowerCase()}`;
+    const allowedToAttempt = await checkRateLimit(
+      loginFailureKey,
+      LOGIN_FAILURE_RATE_LIMIT.maxCount,
+      LOGIN_FAILURE_RATE_LIMIT.windowSeconds,
+      true,
+    );
+    if (!allowedToAttempt) {
+      return apiError("محاولات دخول كتير غلط على الحساب ده، حاول تاني بعد شوية", null, 429);
+    }
+
     const supabase = await createClient();
     const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
@@ -67,10 +87,14 @@ export async function POST(request: NextRequest) {
       return apiError("الإيميل أو الباسورد غير صحيح", null, 401);
     }
 
+    // A correct password proves this wasn't a brute-force attempt - clear
+    // the failure budget right away so it doesn't carry over and throttle
+    // this same account's next legitimate login.
+    await resetRateLimit(loginFailureKey).catch((err) => console.error("resetRateLimit failed", err));
+
     await repairSelfRegistrationIfNeeded(data.user.id, (data.user.user_metadata ?? {}) as SelfRegistrationMetadata);
 
     const userAgent = request.headers.get("user-agent");
-    const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
     const deviceId = await getOrCreateDeviceId();
     const fingerprint = await computeDeviceFingerprint(deviceId, userAgent);
 
@@ -80,7 +104,7 @@ export async function POST(request: NextRequest) {
     const confirmKick =
       typeof body === "object" && body !== null && (body as { confirm_kick?: unknown }).confirm_kick === true;
 
-    const deviceResult = await enforceDeviceLimit(data.user.id, fingerprint, userAgent, ipAddress, confirmKick);
+    const deviceResult = await enforceDeviceLimit(data.user.id, fingerprint, userAgent, ip, confirmKick);
 
     if (!deviceResult.allowed) {
       // scope: "local" - signOut() defaults to "global" (every device this

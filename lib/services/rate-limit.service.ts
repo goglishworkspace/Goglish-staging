@@ -1,8 +1,42 @@
+import type { NextRequest } from "next/server";
+
 /**
  * Postgres-backed rate limiting (Section 0 / Section 22 - no Redis).
  * Calls the `check_rate_limit` RPC over Supabase's REST endpoint via plain
  * fetch so this also works from Edge Middleware (no TCP Postgres access there).
  */
+
+/** True only on Vercel's own build/runtime (set automatically, never by a
+ * client request) - see
+ * https://vercel.com/docs/environment-variables/system-environment-variables. */
+const isVercel = !!process.env.VERCEL;
+
+/** On Vercel, `x-real-ip` and the LAST entry of `x-forwarded-for` are both
+ * set by Vercel's edge network itself (appended after whatever the client
+ * sent), so neither can be spoofed - a client-supplied `x-forwarded-for` is
+ * overwritten/appended to, never trusted as-is. Off Vercel (local dev,
+ * `npm test`), there's no trusted proxy in front of `next dev` at all, so
+ * the leftmost `x-forwarded-for` entry is kept as a best-effort fallback -
+ * it has no real security value locally, but preserves existing dev/test
+ * rate-limit behavior. Shared by proxy.ts (the per-IP request-volume gate)
+ * and the login route (the per-account failure gate below) so there's one
+ * IP-trust story, not two. */
+export function getClientIp(request: NextRequest): string {
+  if (isVercel) {
+    const realIp = request.headers.get("x-real-ip");
+    if (realIp) return realIp.trim();
+
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    if (forwardedFor) {
+      const ips = forwardedFor.split(",").map((ip) => ip.trim());
+      return ips[ips.length - 1] || "unknown";
+    }
+    return "unknown";
+  }
+
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
+
 export type RateLimitRule = {
   /** Prefix matched against the request pathname. */
   pathPrefix: string;
@@ -20,7 +54,16 @@ export type RateLimitRule = {
 };
 
 export const RATE_LIMIT_RULES: RateLimitRule[] = [
-  { pathPrefix: "/api/auth/login", key: "login", maxCount: 5, windowSeconds: 15 * 60, failClosed: true },
+  // Deliberately loose - this is the IP-wide "someone is hammering this
+  // endpoint" gate (scripted abuse / DoS-ish volume), counting every
+  // request regardless of outcome. The actual brute-force defense (wrong
+  // passwords against one specific account) is the separate, much
+  // stricter LOGIN_FAILURE_RATE_LIMIT enforced inside the login route
+  // itself, keyed by IP+email - that split means a student who logs in
+  // correctly several times never eats into the same budget as someone
+  // guessing a password, and one student's wrong attempts on a shared
+  // school/home IP can't lock out everyone else on that IP.
+  { pathPrefix: "/api/auth/login", key: "login", maxCount: 20, windowSeconds: 15 * 60, failClosed: true },
   // More specific than the /api/auth/register rule below, so it must come
   // first - resolveRateLimitRule() takes the first prefix match. This fires
   // once per signUp() call (new attempt or retry alike, see
@@ -37,6 +80,13 @@ export const DEFAULT_RATE_LIMIT: Omit<RateLimitRule, "pathPrefix" | "key"> = {
   maxCount: 60,
   windowSeconds: 60,
 };
+
+/** The real brute-force gate for login (see the RATE_LIMIT_RULES comment
+ * above for the split from the loose IP-wide rule) - checked inside
+ * app/api/auth/login/route.ts itself, keyed by IP+email, before every
+ * signInWithPassword() attempt. Cleared via resetRateLimit() the moment a
+ * login succeeds. */
+export const LOGIN_FAILURE_RATE_LIMIT = { maxCount: 5, windowSeconds: 15 * 60 };
 
 export function resolveRateLimitRule(pathname: string): RateLimitRule {
   const matched = RATE_LIMIT_RULES.find((rule) => pathname.startsWith(rule.pathPrefix));
@@ -85,5 +135,31 @@ export async function checkRateLimit(
     // gracefully either way. Same fail-open/fail-closed split as above.
     console.error("check_rate_limit RPC unreachable", error);
     return !failClosed;
+  }
+}
+
+/** Clears a rate-limit key's counter entirely - used to wipe the login
+ * failure-gate the moment a password check actually succeeds, so that
+ * charge never throttles this same account/IP's next legitimate login.
+ * Best-effort by design: the caller (login route) always .catch()s this -
+ * a reset that fails just means the counter clears on the next natural
+ * window instead, never something worth failing or delaying an
+ * already-successful, already-authenticated login over. */
+export async function resetRateLimit(key: string): Promise<void> {
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/reset_rate_limit`;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({ p_key: key }),
+  });
+
+  if (!response.ok) {
+    console.error("reset_rate_limit RPC failed", response.status, await response.text());
   }
 }

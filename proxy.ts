@@ -1,35 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { checkRateLimit, resolveRateLimitRule } from "@/lib/services/rate-limit.service";
-
-/** True only on Vercel's own build/runtime (set automatically, never by a
- * client request) - see
- * https://vercel.com/docs/environment-variables/system-environment-variables. */
-const isVercel = !!process.env.VERCEL;
-
-/** On Vercel, `x-real-ip` and the LAST entry of `x-forwarded-for` are both
- * set by Vercel's edge network itself (appended after whatever the client
- * sent), so neither can be spoofed - a client-supplied `x-forwarded-for` is
- * overwritten/appended to, never trusted as-is. Off Vercel (local dev,
- * `npm test`), there's no trusted proxy in front of `next dev` at all, so
- * the leftmost `x-forwarded-for` entry is kept as a best-effort fallback -
- * it has no real security value locally, but preserves existing dev/test
- * rate-limit behavior. */
-function getClientIp(request: NextRequest): string {
-  if (isVercel) {
-    const realIp = request.headers.get("x-real-ip");
-    if (realIp) return realIp.trim();
-
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    if (forwardedFor) {
-      const ips = forwardedFor.split(",").map((ip) => ip.trim());
-      return ips[ips.length - 1] || "unknown";
-    }
-    return "unknown";
-  }
-
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-}
+import { checkRateLimit, resolveRateLimitRule, getClientIp } from "@/lib/services/rate-limit.service";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
