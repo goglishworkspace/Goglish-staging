@@ -26,10 +26,19 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Section 32 - security headers. CSP is Report-Only for now (P2.4): it logs
-  // violations without blocking anything until we've confirmed a clean run
-  // across every page type, then it switches to enforced in a follow-up step.
-  // X-Frame-Options below is NOT report-only - it blocks framing immediately.
+  // Section 32 - security headers. CSP is enforced (P2.4 follow-up - it ran
+  // Report-Only first to confirm a clean run across every page type before
+  // this switch). X-Frame-Options below was never report-only - it blocked
+  // framing immediately from the start.
+  //
+  // Bunny Stream (lib/video/bunny.provider.ts) is deliberately NOT allow-
+  // listed here: it has no live library to test against yet, and that
+  // file's own comment flags its `vz-{id}.b-cdn.net` hostname as unconfirmed
+  // against a real Bunny account. Guessing a host into a production CSP
+  // that neither runs today nor was verified would be worse than leaving it
+  // out - add the real host (and iframe.mediadelivery.net if the embed
+  // fallback ever gets used) as part of whatever change actually wires
+  // Bunny into a player.
   async headers() {
     return [
       {
@@ -48,7 +57,7 @@ const nextConfig: NextConfig = {
               ]
             : []),
           {
-            key: "Content-Security-Policy-Report-Only",
+            key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.youtube.com",
