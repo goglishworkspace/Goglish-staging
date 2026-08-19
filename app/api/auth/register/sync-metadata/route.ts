@@ -34,8 +34,16 @@ export async function POST(request: NextRequest) {
   // Defends against an attacker who somehow obtained/guessed a stranger's
   // auth.users id - only the caller who actually holds the signUp() response
   // for this exact email (i.e. the same registration attempt) can pass this.
+  //
+  // The email_confirmed_at check narrows that further: this route only exists
+  // to patch metadata on a *pending* signup, and the register form never
+  // reaches it for an already-registered email (it bails on
+  // user_already_exists / an empty identities array first - see
+  // app/(auth)/register/page.tsx). So refusing confirmed accounts costs the
+  // real flow nothing, and removes the only window where knowing someone's
+  // email + auth id would let a stranger rewrite their profile metadata.
   const { data: existing, error: getError } = await admin.auth.admin.getUserById(user_id);
-  if (getError || !existing.user || existing.user.email !== email) {
+  if (getError || !existing.user || existing.user.email !== email || existing.user.email_confirmed_at) {
     return apiError("تعذر تحديث بيانات التسجيل", null, 403);
   }
 

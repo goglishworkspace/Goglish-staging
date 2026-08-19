@@ -34,7 +34,13 @@ export async function POST(request: NextRequest) {
     .lt("retry_count", MAX_WEBHOOK_RETRIES)
     .or(`next_retry_at.is.null,next_retry_at.lte.${new Date().toISOString()}`)
     .limit(RECONCILE_BATCH_SIZE);
-  if (error) throw error;
+  // Throwing here escaped as a raw non-JSON 500 (same shape of bug the login
+  // route was wrapped for) - pg_cron retries either way, but a JSON body keeps
+  // the failure readable in logs instead of an opaque stack trace.
+  if (error) {
+    console.error("reconcile: failed to load pending webhook events", error);
+    return NextResponse.json({ error: "failed to load pending events" }, { status: 500 });
+  }
 
   let retried = 0;
   let stillFailing = 0;

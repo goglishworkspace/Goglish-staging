@@ -17,6 +17,19 @@ const eslintConfig = defineConfig([
     // script here that isn't our source.
     "supabase/.temp/**",
   ]),
+  {
+    rules: {
+      // Honor the conventional "_" prefix for deliberately-unused bindings.
+      // The pattern this codebase actually uses it for is omit-a-key
+      // destructuring (`const { exams: _exams, ...rest } = row`) to strip a
+      // joined relation out of an API response - the binding is never meant
+      // to be read, and naming it is the only way to drop the key.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { varsIgnorePattern: "^_", argsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
