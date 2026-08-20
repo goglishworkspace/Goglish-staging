@@ -4,14 +4,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 /** Section 16/27 - SEO. Built from real published content, not a static
- * list - courses.slug isn't globally unique (Phase 2: unique per subject),
- * which matters once actual `/courses/[slug]` pages exist; harmless here
- * since no such page is built yet. */
+ * list - the actual routes (app/(marketing)/courses/[id], .../subjects/[id])
+ * are keyed by id, not slug (slug is only unique per-subject, not globally -
+ * see Phase 2), so this selects id and links by id. Linking by slug here
+ * used to generate URLs Google would 404 on for every single course and
+ * subject in the sitemap. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const admin = createAdminClient();
   const [{ data: courses }, { data: subjects }, { data: teachers }] = await Promise.all([
-    admin.from("courses").select("slug, updated_at").eq("status", "published").is("deleted_at", null),
-    admin.from("subjects").select("slug"),
+    admin.from("courses").select("id, updated_at").eq("status", "published").is("deleted_at", null),
+    admin.from("subjects").select("id"),
     admin.from("teachers").select("id").eq("status", "active"),
   ]);
 
@@ -27,14 +29,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const courseRoutes: MetadataRoute.Sitemap = (courses ?? []).map((course) => ({
-    url: `${SITE_URL}/courses/${course.slug}`,
+    url: `${SITE_URL}/courses/${course.id}`,
     lastModified: course.updated_at ? new Date(course.updated_at as string) : undefined,
     changeFrequency: "weekly",
     priority: 0.8,
   }));
 
   const subjectRoutes: MetadataRoute.Sitemap = (subjects ?? []).map((subject) => ({
-    url: `${SITE_URL}/subjects/${subject.slug}`,
+    url: `${SITE_URL}/subjects/${subject.id}`,
     changeFrequency: "weekly",
     priority: 0.6,
   }));

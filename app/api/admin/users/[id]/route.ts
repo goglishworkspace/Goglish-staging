@@ -1,7 +1,7 @@
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
 import { userHasAnyRole } from "@/lib/auth/require-role";
-import { softDeleteUser, getUserDetail } from "@/lib/services/admin-user-management.service";
+import { softDeleteUser, getUserDetail, TeacherHasCoursesError } from "@/lib/services/admin-user-management.service";
 
 const VIEW_ROLES = ["admin", "super_admin", "support"];
 const MANAGE_ROLES = ["admin", "super_admin"];
@@ -33,6 +33,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return apiError("مش مسموح لك بالإجراء ده", null, 403);
   }
 
-  await softDeleteUser(user.id, id);
-  return apiSuccess(null, "تم حذف المستخدم (يمكن استرجاعه خلال 30 يوم)");
+  try {
+    await softDeleteUser(user.id, id);
+  } catch (error) {
+    if (error instanceof TeacherHasCoursesError) return apiError(error.message, null, 409);
+    throw error;
+  }
+  return apiSuccess(null, "تم حذف المستخدم (يمكن استرجاعه خلال ساعة قبل ما يتحذف نهائياً)");
 }

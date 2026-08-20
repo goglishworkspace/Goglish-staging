@@ -3,10 +3,54 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "./audit-log.service";
 
 const PERMANENT_BAN_DURATION = "876000h"; // ~100 years, GoTrue has no "forever" literal
-const HARD_DELETE_AFTER_DAYS = 30;
+const HARD_DELETE_AFTER_HOURS = 1;
+
+// Postgrest sends .in() filters as part of the URL query string - one call
+// covering all users at real scale (900+ ids seen in this project already)
+// produces a URL long enough to get silently truncated/rejected somewhere in
+// front of Postgrest (proxy/URL-length limit), which came back as some
+// arbitrary subset of rows missing rather than an error. listUsers() below
+// showed real users as if they had no profile at all (null name, deleted_at
+// always false) once the id list got large. 200 ids/chunk keeps each request
+// comfortably under typical URL-length limits.
+const IN_CLAUSE_CHUNK_SIZE = 200;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+async function selectInChunks<T>(
+  ids: string[],
+  fetchChunk: (idsChunk: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const results = await Promise.all(chunk(ids, IN_CLAUSE_CHUNK_SIZE).map(fetchChunk));
+  const merged: T[] = [];
+  for (const { data, error } of results) {
+    if (error) throw new Error(error.message);
+    if (data) merged.push(...data);
+  }
+  return merged;
+}
 
 export class RoleNotFoundError extends Error {}
 export class TeacherNotFoundError extends Error {}
+
+/** Thrown by softDeleteUser() when the target created any course -
+ * courses.created_by has no ON DELETE action (unlike every other "who did
+ * this" column, see 20260819100000_actor_columns_survive_hard_delete.sql),
+ * so hard-deleting them would either fail outright or - if it didn't -
+ * orphan a course real students may have paid for. Caught in the API route
+ * and surfaced as a 409 with the course titles so the admin can reassign or
+ * remove them first. */
+export class TeacherHasCoursesError extends Error {
+  constructor(public courseTitles: string[]) {
+    super(`المدرس ده لسه عنده كورسات، لازم تحولها لمدرس تاني أو تمسحها الأول: ${courseTitles.join("، ")}`);
+  }
+}
+
+export class UserNotDeletedError extends Error {}
 
 export type AdminUserSummary = {
   id: string;
@@ -41,22 +85,24 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
   if (error) throw error;
 
   const ids = authList.users.map((u) => u.id);
-  const [{ data: profiles }, { data: roleRows }, { data: teacherRows }] = await Promise.all([
-    admin.from("profiles").select("id, first_name, last_name, phone, grade, deleted_at, comment_banned").in("id", ids),
-    admin.from("role_user").select("user_id, roles(name)").in("user_id", ids),
-    admin.from("teachers").select("user_id, status").in("user_id", ids),
+  const [profiles, roleRows, teacherRows] = await Promise.all([
+    selectInChunks(ids, (batch) =>
+      admin.from("profiles").select("id, first_name, last_name, phone, grade, deleted_at, comment_banned").in("id", batch),
+    ),
+    selectInChunks(ids, (batch) => admin.from("role_user").select("user_id, roles(name)").in("user_id", batch)),
+    selectInChunks(ids, (batch) => admin.from("teachers").select("user_id, status").in("user_id", batch)),
   ]);
 
-  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
   const rolesByUser = new Map<string, string[]>();
-  for (const row of roleRows ?? []) {
+  for (const row of roleRows) {
     const roleName = (row.roles as unknown as { name: string } | null)?.name;
     if (!roleName) continue;
     const list = rolesByUser.get(row.user_id) ?? [];
     list.push(roleName);
     rolesByUser.set(row.user_id, list);
   }
-  const teacherByUser = new Map((teacherRows ?? []).map((t) => [t.user_id, t.status as string]));
+  const teacherByUser = new Map(teacherRows.map((t) => [t.user_id, t.status as string]));
 
   let result: AdminUserSummary[] = authList.users.map((u) => {
     const profile = profileById.get(u.id);
@@ -276,10 +322,27 @@ export async function revokeRole(actorUserId: string, targetUserId: string, role
 }
 
 /** Soft delete (Section 23) - profiles.deleted_at, same column/pattern as
- * courses/lessons/comments/reviews. Hard-delete after 30 days is
- * hardDeleteDueUsers() below. */
+ * courses/lessons/comments/reviews. Hard-delete after HARD_DELETE_AFTER_HOURS
+ * is hardDeleteDueUsers() below; restoreUser() undoes this while it's still
+ * pending. */
 export async function softDeleteUser(actorUserId: string, targetUserId: string): Promise<void> {
   const admin = createAdminClient();
+
+  // courses.created_by is the one actor-reference column that still blocks
+  // a real delete (see the migration comment on
+  // 20260819100000_actor_columns_survive_hard_delete.sql) - checked up front
+  // so the admin finds out now, not silently 1 hour later when the cron
+  // job's deleteUser() call fails and nothing happens.
+  const { data: courses, error: coursesError } = await admin
+    .from("courses")
+    .select("title")
+    .eq("created_by", targetUserId)
+    .limit(5);
+  if (coursesError) throw coursesError;
+  if (courses && courses.length > 0) {
+    throw new TeacherHasCoursesError(courses.map((c) => c.title));
+  }
+
   const { error } = await admin
     .from("profiles")
     .update({ deleted_at: new Date().toISOString() })
@@ -288,12 +351,32 @@ export async function softDeleteUser(actorUserId: string, targetUserId: string):
   await logAudit({ actorUserId, action: "user.soft_deleted", targetTable: "profiles", targetId: targetUserId });
 }
 
-/** Called daily by pg_cron via /api/admin/users/hard-delete-due (Section 23
- * - "Hard Delete دائم بعد 30 يوم"). Uses the real Auth Admin API, which
- * cascades to profiles/devices/role_user etc. via ON DELETE CASCADE. */
+/** Undoes softDeleteUser() while the account is still within its grace
+ * window (deleted_at is only cleared here - once hardDeleteDueUsers() has
+ * actually run, the auth.users row and everything under it is gone for
+ * real, and there is nothing left to restore). */
+export async function restoreUser(actorUserId: string, targetUserId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .update({ deleted_at: null })
+    .eq("id", targetUserId)
+    .not("deleted_at", "is", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new UserNotDeletedError("المستخدم ده مش محذوف أصلاً");
+  await logAudit({ actorUserId, action: "user.restored", targetTable: "profiles", targetId: targetUserId });
+}
+
+/** Polled every 10 minutes by pg_cron via /api/admin/users/hard-delete-due
+ * (Section 23). Uses the real Auth Admin API, which cascades to
+ * profiles/devices/role_user etc. via ON DELETE CASCADE - everything else
+ * (financial records, content attribution) goes to ON DELETE SET NULL
+ * instead, see 20260819100000_actor_columns_survive_hard_delete.sql. */
 export async function hardDeleteDueUsers(): Promise<{ deletedCount: number }> {
   const admin = createAdminClient();
-  const cutoff = new Date(Date.now() - HARD_DELETE_AFTER_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - HARD_DELETE_AFTER_HOURS * 60 * 60 * 1000).toISOString();
 
   const { data: dueUsers } = await admin
     .from("profiles")

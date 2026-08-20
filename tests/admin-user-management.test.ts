@@ -1,7 +1,12 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createUserRegistry } from "./cleanup";
-import { createLoggedInAdmin, createLoggedInStudent, createLoggedInTeacher } from "./phase2-fixtures";
+import {
+  createLoggedInAdmin,
+  createLoggedInStudent,
+  createLoggedInTeacher,
+  createPublishedLesson,
+} from "./phase2-fixtures";
 import { createTestClient } from "./http-client";
 import { TEST_BASE_URL } from "./test-env";
 
@@ -113,7 +118,7 @@ describe("Admin user management", () => {
     expect(unknownRoleRes.status).toBe(404);
   });
 
-  it("soft-deletes a user, then hard-deletes them once past the 30-day window", async () => {
+  it("soft-deletes a user, then hard-deletes them once past the 1-hour grace window", async () => {
     const { client: adminClient, userId: adminId } = await createLoggedInAdmin();
     registry.track(adminId);
     const student = await createLoggedInStudent();
@@ -126,10 +131,10 @@ describe("Admin user management", () => {
     const { data: profile } = await supabase.from("profiles").select("deleted_at").eq("id", student.userId).single();
     expect(profile?.deleted_at).toBeTruthy();
 
-    // Simulate 31 days having passed.
+    // Simulate 2 hours having passed - well past HARD_DELETE_AFTER_HOURS (1).
     await supabase
       .from("profiles")
-      .update({ deleted_at: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString() })
+      .update({ deleted_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() })
       .eq("id", student.userId);
 
     const unauthorized = await fetch(`${TEST_BASE_URL}/api/admin/users/hard-delete-due`, {
@@ -147,6 +152,46 @@ describe("Admin user management", () => {
     const { data: goneUser } = await supabase.auth.admin.getUserById(student.userId);
     expect(goneUser.user).toBeNull();
   }, 30000);
+
+  it("restores a soft-deleted user before the hard-delete window passes", async () => {
+    const { client: adminClient, userId: adminId } = await createLoggedInAdmin();
+    registry.track(adminId);
+    const student = await createLoggedInStudent();
+    registry.track(student.userId);
+
+    const deleteRes = await adminClient.delete(`/api/admin/users/${student.userId}`);
+    expect(deleteRes.status).toBe(200);
+
+    const restoreRes = await adminClient.post(`/api/admin/users/${student.userId}/restore`);
+    expect(restoreRes.status).toBe(200);
+
+    const supabase = createAdminClient();
+    const { data: profile } = await supabase.from("profiles").select("deleted_at").eq("id", student.userId).single();
+    expect(profile?.deleted_at).toBeNull();
+
+    // Nothing to restore the second time - already active.
+    const secondRestoreRes = await adminClient.post(`/api/admin/users/${student.userId}/restore`);
+    expect(secondRestoreRes.status).toBe(409);
+  });
+
+  it("blocks deleting a teacher who still has courses, naming them in the error", async () => {
+    const { admin, teacher, courseId } = await createPublishedLesson();
+    registry.track(admin.userId);
+    registry.track(teacher.userId);
+
+    const deleteRes = await admin.client.delete(`/api/admin/users/${teacher.userId}`);
+    expect(deleteRes.status).toBe(409);
+    expect(deleteRes.json?.message).toContain("كورس تجريبي");
+
+    const supabase = createAdminClient();
+    const { data: profile } = await supabase.from("profiles").select("deleted_at").eq("id", teacher.userId).single();
+    expect(profile?.deleted_at).toBeNull();
+
+    // Confirms the block is specifically about *this* teacher having a
+    // course, not e.g. every teacher being unconditionally blocked.
+    const { data: course } = await supabase.from("courses").select("created_by").eq("id", courseId).single();
+    expect(course?.created_by).toBe(teacher.userId);
+  });
 
   it("triggers a password reset email for a user", async () => {
     const { client: adminClient, userId: adminId } = await createLoggedInAdmin();

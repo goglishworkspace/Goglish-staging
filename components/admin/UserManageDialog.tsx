@@ -25,6 +25,7 @@ import {
   useSuspendTeacher,
   useReactivateTeacher,
   useSoftDeleteUser,
+  useRestoreUser,
   type AdminUserSummary,
 } from "@/lib/api/queries/admin-users";
 
@@ -73,6 +74,7 @@ export function UserManageDialog({
   const suspendTeacher = useSuspendTeacher();
   const reactivateTeacher = useReactivateTeacher();
   const softDelete = useSoftDeleteUser();
+  const restore = useRestoreUser();
   const [roleToAssign, setRoleToAssign] = useState("");
   const [teacherDisplayName, setTeacherDisplayName] = useState("");
   const [teacherBio, setTeacherBio] = useState("");
@@ -274,12 +276,31 @@ export function UserManageDialog({
           </div>
         </div>
 
+        {user.deleted_at && (
+          <p className="text-caption text-muted-foreground">
+            المستخدم ده هيتحذف نهائياً خلال ساعة من وقت الحذف - استرجعه دلوقتي لو الحذف ده غلط.
+          </p>
+        )}
+
         <DialogFooter>
-          {!user.deleted_at && (
+          {user.deleted_at ? (
+            <Button
+              variant="outline"
+              disabled={restore.isPending}
+              onClick={() => restore.mutate({ id: user.id, input: undefined }, toastHandlers("تم استرجاع المستخدم"))}
+            >
+              استرجاع المستخدم
+            </Button>
+          ) : (
             <Button
               variant="destructive"
               disabled={softDelete.isPending}
-              onClick={() => softDelete.mutate({ id: user.id, input: undefined }, toastHandlers("تم حذف المستخدم (يمكن استرجاعه خلال 30 يوم)"))}
+              onClick={() =>
+                softDelete.mutate(
+                  { id: user.id, input: undefined },
+                  toastHandlers("تم حذف المستخدم (يمكن استرجاعه خلال ساعة قبل ما يتحذف نهائياً)"),
+                )
+              }
             >
               حذف المستخدم
             </Button>

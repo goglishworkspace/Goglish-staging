@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 /** A soft-deleted account (profiles.deleted_at set by
  * softDeleteUser/DELETE /api/admin/users/[id]) should stop being publicly
- * visible immediately - not just once the 30-day hard-delete cron actually
+ * visible immediately - not just once the hard-delete cron actually
  * removes the row. But `teachers.user_id` and `profiles.id` are sibling FKs
  * to auth.users, not FKs to each other (same situation as course_teachers),
  * so softDeleteUser can't cascade into `teachers` via the DB, and every

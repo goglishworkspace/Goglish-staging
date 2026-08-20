@@ -85,3 +85,7 @@ export function useReactivateTeacher() {
 export function useSoftDeleteUser() {
   return useAdminUserMutation((id) => api.delete(`/api/admin/users/${id}`));
 }
+
+export function useRestoreUser() {
+  return useAdminUserMutation((id) => api.post(`/api/admin/users/${id}/restore`));
+}
