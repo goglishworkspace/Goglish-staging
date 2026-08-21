@@ -130,7 +130,7 @@ export default function TeacherProfilePage({ params }: { params: Promise<{ id: s
 
           <section className="mt-10 w-full">
             <h2 className="text-h3 text-secondary dark:text-white">كورسات المدرس</h2>
-            <div className="mt-4 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
               {coursesLoading &&
                 Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-56 w-full rounded-xl" />)}
               {!coursesLoading &&

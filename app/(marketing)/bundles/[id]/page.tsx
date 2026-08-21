@@ -109,7 +109,7 @@ export default function BundlePage({ params }: { params: Promise<{ id: string }>
 
           <section id="bundle-courses" className="mt-10 w-full scroll-mt-20">
             <h2 className="text-h3 text-secondary dark:text-white">تشمل الباقة دي</h2>
-            <div className="mt-4 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
               {/* Same CourseCard used on the teacher-profile/courses pages -
                   it links to /courses/[id], which does its own access check,
                   so a course a student hasn't unlocked yet still shows the

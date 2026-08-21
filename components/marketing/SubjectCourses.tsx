@@ -43,7 +43,7 @@ export function SubjectCourses({ subjectId }: { subjectId: string }) {
       )}
 
       <h2 className="mt-8 text-h3 text-secondary dark:text-white">الكورسات</h2>
-      <div className="mt-4 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {coursesLoading &&
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-56 w-full rounded-xl" />)}
         {!coursesLoading && courses?.map((course) => <CourseCard key={course.id} course={course} />)}
