@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCourse } from "@/lib/api/queries/courses";
+import { useCourseProgress } from "@/lib/api/queries/lesson-progress";
 import { postJson } from "@/lib/api/client-fetch";
 import { CourseModules } from "@/components/marketing/CourseModules";
 import { ReviewsSection } from "@/components/marketing/ReviewsSection";
@@ -25,6 +26,7 @@ import { useProfile } from "@/lib/api/queries/profile";
 export default function CoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: course, isLoading, isError } = useCourse(id);
+  const { data: progress } = useCourseProgress(id, { enabled: !!course?.has_access });
   const [enrolling, setEnrolling] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const { data: profile } = useProfile();
@@ -144,7 +146,11 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
 
             <div className="flex w-full flex-col gap-2 sm:w-56 sm:shrink-0">
               {course.has_access ? (
-                <Button className="w-full" nativeButton={false} render={<Link href="#course-content" />}>
+                <Button
+                  className="w-full"
+                  nativeButton={false}
+                  render={<Link href={progress?.next_lesson_id ? `/lessons/${progress.next_lesson_id}` : "#course-content"} />}
+                >
                   <PlayCircle />
                   متابعة التعلم
                 </Button>

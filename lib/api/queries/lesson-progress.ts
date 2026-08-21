@@ -25,9 +25,10 @@ export type CourseProgressSummary = {
   completed_lessons: number;
   percent: number;
   completed_lesson_ids: string[];
+  next_lesson_id: string | null;
 };
 
-export function useCourseProgress(courseId: string) {
+export function useCourseProgress(courseId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["course-progress", courseId],
     queryFn: async () => {
@@ -35,7 +36,7 @@ export function useCourseProgress(courseId: string) {
       return data.data;
     },
     staleTime: 30 * 1000,
-    enabled: !!courseId,
+    enabled: !!courseId && (options?.enabled ?? true),
   });
 }
 

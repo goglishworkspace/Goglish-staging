@@ -2,12 +2,6 @@
 
 import Link from "next/link";
 import { Lock, PlayCircle } from "lucide-react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCourseModules, useModuleLessons, type CourseModule } from "@/lib/api/queries/modules";
 
@@ -62,15 +56,13 @@ export function CourseModules({ courseId, hasAccess }: { courseId: string; hasAc
   }
 
   return (
-    <Accordion className="w-full">
+    <div className="flex w-full flex-col gap-4">
       {modules.map((mod: CourseModule) => (
-        <AccordionItem key={mod.id} value={mod.id}>
-          <AccordionTrigger>{mod.title}</AccordionTrigger>
-          <AccordionContent>
-            <ModuleLessons moduleId={mod.id} hasAccess={hasAccess} />
-          </AccordionContent>
-        </AccordionItem>
+        <div key={mod.id} className="w-full">
+          <h3 className="py-2.5 text-sm font-medium text-foreground">{mod.title}</h3>
+          <ModuleLessons moduleId={mod.id} hasAccess={hasAccess} />
+        </div>
       ))}
-    </Accordion>
+    </div>
   );
 }
