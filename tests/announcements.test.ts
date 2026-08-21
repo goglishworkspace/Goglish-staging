@@ -102,4 +102,36 @@ describe("Announcements", () => {
     const res = await client.post("/api/announcements", { title: "x", body: "y", target: "all" });
     expect(res.status).toBe(403);
   });
+
+  it("deleting an announcement removes it from every recipient's notifications", async () => {
+    const { client: adminClient, userId: adminId } = await createLoggedInAdmin();
+    registry.track(adminId);
+    const { userId: studentId } = await createLoggedInStudent();
+    registry.track(studentId);
+
+    const { json } = await adminClient.post<{ id: string }>("/api/announcements", {
+      title: "إعلان هيتمسح",
+      body: "محتوى",
+      target: "all",
+    });
+    const announcementId = json!.data!.id;
+
+    const supabase = createAdminClient();
+    const before = await supabase
+      .from("notifications")
+      .select("id")
+      .eq("user_id", studentId)
+      .contains("metadata", { announcement_id: announcementId });
+    expect(before.data?.length).toBe(1);
+
+    const delRes = await adminClient.delete(`/api/announcements/${announcementId}`);
+    expect(delRes.status).toBe(200);
+
+    const after = await supabase
+      .from("notifications")
+      .select("id")
+      .eq("user_id", studentId)
+      .contains("metadata", { announcement_id: announcementId });
+    expect(after.data?.length).toBe(0);
+  });
 });
