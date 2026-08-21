@@ -151,6 +151,27 @@ export function YouTubePlayer({
     onTimeUpdateRef.current = onTimeUpdate;
   }, [onTimeUpdate]);
 
+  // Whether to hide the control bar until :hover, checked at runtime instead
+  // of via a Tailwind pointer-fine:/CSS media-query variant - combining
+  // hover+pointer in one @media rule trips a parser bug in this project's
+  // CSS minifier that breaks the entire stylesheet. Also can't key this off
+  // viewport width (e.g. md:) - a phone in landscape or fullscreen easily
+  // reports a "desktop-width" viewport while still being a touchscreen with
+  // no hover at all, which would hide the bar with no way to reveal it.
+  const [hoverCapable, setHoverCapable] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(hover: hover) and (pointer: fine)");
+    // Genuinely can't know this during SSR (no window) or compute it via a
+    // useState lazy initializer either - that runs during the client's first
+    // render too, but its result gets discarded in favor of the server's
+    // value to keep hydration consistent, so this has to be corrected here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
+    setHoverCapable(query.matches);
+    const onChange = (e: MediaQueryListEvent) => setHoverCapable(e.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     loadYouTubeIframeApi().then(() => {
@@ -324,11 +345,12 @@ export function YouTubePlayer({
         className="absolute inset-0 h-full w-full cursor-pointer"
       />
 
-      {/* Visible by default below md - touchscreens have no :hover, so a
-          phone/tablet viewer would otherwise never be able to see (let alone
-          tap) fullscreen/volume/seek at all. Desktop keeps the original
-          hover-to-reveal behavior. */}
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 to-transparent p-3 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+      <div
+        className={cn(
+          "absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 to-transparent p-3 transition-opacity",
+          hoverCapable ? "opacity-0 group-hover:opacity-100 focus-within:opacity-100" : "opacity-100",
+        )}
+      >
         <input
           type="range"
           min={0}
