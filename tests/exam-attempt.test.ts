@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { createUserRegistry } from "./cleanup";
-import { createLoggedInStudent, grantCourseAccess } from "./phase2-fixtures";
+import { createLoggedInStudent, grantCourseAccess, createPublishedLesson } from "./phase2-fixtures";
 import { createPublishedExam } from "./phase3-fixtures";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -124,5 +124,43 @@ describe("Exam attempts", () => {
     expect(attempt?.status).toBe("submitted");
     expect(attempt?.auto_submitted).toBe(true);
     expect(attempt?.score_percent).toBe(0);
+  });
+
+  it("notifies students with course access when an exam is published", async () => {
+    const { teacher, courseId } = await createPublishedLesson();
+    registry.track(teacher.userId);
+
+    const { userId: studentId } = await createLoggedInStudent();
+    registry.track(studentId);
+    await grantCourseAccess(studentId, courseId);
+
+    const { json: examJson } = await teacher.client.post<{ id: string }>("/api/exams", {
+      course_id: courseId,
+      title: "امتحان اختبار الإشعارات",
+      passing_score_percent: 50,
+    });
+    const examId = examJson!.data!.id;
+
+    const publishRes = await teacher.client.patch(`/api/exams/${examId}`, { status: "published" });
+    expect(publishRes.status).toBe(200);
+
+    const adminClient = createAdminClient();
+    const { data: notifications } = await adminClient
+      .from("notifications")
+      .select("id, title")
+      .eq("user_id", studentId)
+      .eq("type", "new_exam")
+      .contains("metadata", { exam_id: examId });
+    expect(notifications?.length).toBe(1);
+
+    // A second PATCH that leaves status already "published" must not re-fire.
+    await teacher.client.patch(`/api/exams/${examId}`, { status: "published" });
+    const { data: afterSecondPatch } = await adminClient
+      .from("notifications")
+      .select("id")
+      .eq("user_id", studentId)
+      .eq("type", "new_exam")
+      .contains("metadata", { exam_id: examId });
+    expect(afterSecondPatch?.length).toBe(1);
   });
 });

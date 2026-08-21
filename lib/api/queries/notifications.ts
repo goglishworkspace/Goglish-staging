@@ -69,6 +69,11 @@ export function notificationHref(notification: Notification): string | null {
     return typeof lessonId === "string" ? `/lessons/${lessonId}` : null;
   }
 
+  if (notification.type === "new_exam") {
+    const examId = notification.metadata?.exam_id;
+    return typeof examId === "string" ? `/exams/${examId}/attempt` : null;
+  }
+
   if (notification.type === "new_course_in_bundle") {
     const bundleId = notification.metadata?.bundle_id;
     return typeof bundleId === "string" ? `/bundles/${bundleId}` : null;

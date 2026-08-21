@@ -3,6 +3,7 @@ import { apiSuccess, apiError } from "@/lib/api/response";
 import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
 import { updateExamSchema } from "@/lib/validation/exam.schemas";
+import { notifyNewExamPublished } from "@/lib/services/content-notification.service";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,6 +30,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return apiError("بيانات غير صالحة", zodErrorsToApiErrors(parsed.error), 422);
   }
 
+  const { data: existing } = await supabase.from("exams").select("status").eq("id", id).maybeSingle();
+
   const { data, error } = await supabase
     .from("exams")
     .update(parsed.data)
@@ -38,6 +41,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (error) return apiError("تعذر تحديث الامتحان", null, 400);
   if (!data) return apiError("الامتحان غير موجود أو مش مسموح تعدّله", null, 403);
+
+  if (parsed.data.status === "published" && existing?.status !== "published") {
+    await notifyNewExamPublished(id);
+  }
+
   return apiSuccess(data, "تم تحديث الامتحان");
 }
 

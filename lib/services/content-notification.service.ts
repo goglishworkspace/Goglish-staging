@@ -35,6 +35,36 @@ export async function notifyNewLessonPublished(lessonId: string): Promise<void> 
   });
 }
 
+/** Notifies every student with access to a course when a new exam is
+ * published in it - same fan-out as notifyNewLessonPublished, but exams
+ * reference course_id directly (no module indirection). */
+export async function notifyNewExamPublished(examId: string): Promise<void> {
+  const admin = createAdminClient();
+
+  const { data: exam } = await admin
+    .from("exams")
+    .select("id, title, course_id, courses(title)")
+    .eq("id", examId)
+    .maybeSingle();
+  if (!exam) return;
+
+  const course = Array.isArray(exam.courses) ? exam.courses[0] : exam.courses;
+  if (!course) return;
+
+  const { data: entitlements } = await admin
+    .from("course_entitlements")
+    .select("user_id")
+    .eq("course_id", exam.course_id)
+    .is("revoked_at", null);
+
+  await dispatchNotificationToMany((entitlements ?? []).map((entitlement) => entitlement.user_id), {
+    type: "new_exam",
+    title: `امتحان جديد في ${course.title}`,
+    body: exam.title,
+    metadata: { course_id: exam.course_id, exam_id: exam.id },
+  });
+}
+
 /** Notifies every student who bought a bundle when new courses are added to
  * it - they already have access to the added courses (grantBundleAccess
  * covers new orders going forward, but existing buyers only get access to
