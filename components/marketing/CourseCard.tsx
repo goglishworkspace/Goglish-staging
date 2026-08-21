@@ -24,10 +24,10 @@ export function CourseCard({ course, showTeacher = true }: { course: Course; sho
           <img
             src={course.cover_image_url}
             alt={course.title}
-            className="h-36 w-full object-cover"
+            className="aspect-video w-full object-cover"
           />
         ) : (
-          <div className="flex h-36 w-full items-center justify-center bg-muted text-h3 text-muted-foreground">
+          <div className="flex aspect-video w-full items-center justify-center bg-muted text-h3 text-muted-foreground">
             {course.title.charAt(0)}
           </div>
         )}

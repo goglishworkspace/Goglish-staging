@@ -14,9 +14,9 @@ export function BundleCard({ bundle }: { bundle: Bundle }) {
       <Card className="w-full overflow-hidden transition-shadow hover:shadow-md">
         {bundle.cover_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={bundle.cover_image_url} alt={bundle.title} className="h-36 w-full object-cover" />
+          <img src={bundle.cover_image_url} alt={bundle.title} className="aspect-video w-full object-cover" />
         ) : (
-          <div className="flex h-36 w-full items-center justify-center bg-muted text-h3 text-muted-foreground">
+          <div className="flex aspect-video w-full items-center justify-center bg-muted text-h3 text-muted-foreground">
             {bundle.title.charAt(0)}
           </div>
         )}
