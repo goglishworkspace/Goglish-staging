@@ -324,7 +324,11 @@ export function YouTubePlayer({
         className="absolute inset-0 h-full w-full cursor-pointer"
       />
 
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      {/* Visible by default below md - touchscreens have no :hover, so a
+          phone/tablet viewer would otherwise never be able to see (let alone
+          tap) fullscreen/volume/seek at all. Desktop keeps the original
+          hover-to-reveal behavior. */}
+      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 to-transparent p-3 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
         <input
           type="range"
           min={0}
