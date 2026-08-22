@@ -4,7 +4,7 @@ import { use, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Wallet } from "lucide-react";
+import { Wallet, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,24 +12,89 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { postJson } from "@/lib/api/client-fetch";
 import type { ApiSuccess, ApiError } from "@/lib/api/response";
 
-/** Renders whatever daffaaPaymentInfo() returned - the field names aren't
- * documented beyond "wallets, currency, exchange rate", so this stays
- * generic instead of assuming a specific shape that might not match. */
+/** Shape of GET /api/getPaymentInfo?store_id= as actually observed live
+ * against the goglish store (2026-08-22) - Daffaa's own docs only say
+ * "wallets, currency, exchange rate" with no schema, so this is inferred
+ * from the real response rather than official docs. Every field is
+ * optional/nullable on purpose: an unconfigured store returns most of
+ * these as "" or null (no wallets/InstaPay added yet), which the UI below
+ * treats as "no payment method available" rather than rendering blanks. */
+type DaffaaWalletInfo = {
+  number?: string | null;
+  SIM1?: string | null;
+  SIM2?: string | null;
+  instapay?: string | null;
+  whatsapp?: string | null;
+  instapay_info?: {
+    username?: string | null;
+    phone?: string | null;
+    link?: string | null;
+    address?: string | null;
+  } | null;
+  lines?: unknown[];
+};
+
+function isWalletInfo(info: unknown): info is DaffaaWalletInfo {
+  return !!info && typeof info === "object";
+}
+
+/** Curated view of the store's payment destinations only - the raw API
+ * response also carries currency/rate/fee bookkeeping fields (rate,
+ * percentage, storecurrency, ...) that are Daffaa dashboard configuration,
+ * not something a student paying in EGP needs to see. */
 function WalletInfo({ info }: { info: unknown }) {
-  if (!info || typeof info !== "object") return null;
-  const entries = Object.entries(info as Record<string, unknown>);
-  if (!entries.length) return null;
+  if (!isWalletInfo(info)) return null;
+
+  const wallets = [info.number, info.SIM1, info.SIM2].filter(
+    (v): v is string => !!v && v.trim() !== "",
+  );
+  const instapayValues = [info.instapay, info.instapay_info?.phone, info.instapay_info?.username, info.instapay_info?.link].filter(
+    (v): v is string => !!v && v.trim() !== "",
+  );
+  const hasLines = Array.isArray(info.lines) && info.lines.length > 0;
+  const hasAnyDestination = wallets.length > 0 || instapayValues.length > 0 || hasLines;
+
+  if (!hasAnyDestination) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-small text-destructive">
+        <p>لسه مفيش وسيلة دفع متاحة على المتجر ده.</p>
+        {info.whatsapp && (
+          <p>
+            تواصل معانا على واتساب <span dir="ltr">{info.whatsapp}</span> قبل ما تحاول تدفع.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3 text-small">
-      {entries.map(([key, value]) => (
-        <div key={key} className="flex flex-wrap items-start justify-between gap-2">
-          <span className="text-muted-foreground">{key}</span>
-          <span className="font-medium text-foreground" dir="ltr">
-            {typeof value === "object" ? JSON.stringify(value) : String(value)}
-          </span>
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-3 text-small">
+      {wallets.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="text-caption text-muted-foreground">رقم المحفظة</p>
+          {wallets.map((number) => (
+            <p key={number} className="font-medium text-foreground" dir="ltr">
+              {number}
+            </p>
+          ))}
         </div>
-      ))}
+      )}
+      {instapayValues.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="text-caption text-muted-foreground">إنستاباي</p>
+          {instapayValues.map((value) => (
+            <p key={value} className="font-medium text-foreground" dir="ltr">
+              {value}
+            </p>
+          ))}
+        </div>
+      )}
+      {info.whatsapp && (
+        <p className="flex items-center gap-1.5 text-caption text-muted-foreground">
+          <MessageCircle className="size-3.5 shrink-0" />
+          استفسارات: <span dir="ltr">{info.whatsapp}</span>
+        </p>
+      )}
     </div>
   );
 }
