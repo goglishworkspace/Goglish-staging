@@ -111,7 +111,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     .select("id")
     .single();
-  if (paymentError) return apiError("تعذر إنشاء محاولة الدفع", null, 500);
+  if (paymentError) {
+    console.error(`payments insert failed for order ${order.id} (provider ${parsed.data.provider})`, paymentError);
+    return apiError("تعذر إنشاء محاولة الدفع", null, 500);
+  }
 
   return apiSuccess(
     { payment_id: payment.id, checkout_url: checkout.checkoutUrl },
