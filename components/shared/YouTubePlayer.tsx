@@ -13,8 +13,6 @@ import {
   Volume2,
   Volume1,
   VolumeX,
-  Captions,
-  CaptionsOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,9 +57,6 @@ type YouTubePlayerInstance = {
   mute: () => void;
   unMute: () => void;
   isMuted: () => boolean;
-  loadModule: (module: string) => void;
-  unloadModule: (module: string) => void;
-  setOption: (module: string, option: string, value: unknown) => void;
   destroy: () => void;
 };
 
@@ -145,7 +140,6 @@ export function YouTubePlayer({
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [volume, setVolume] = useState(100);
   const [muted, setMuted] = useState(false);
-  const [captionsOn, setCaptionsOn] = useState(false);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
@@ -185,6 +179,7 @@ export function YouTubePlayer({
           modestbranding: 1,
           rel: 0,
           iv_load_policy: 3,
+          cc_load_policy: 0,
         },
         events: {
           onReady: (event) => {
@@ -261,19 +256,6 @@ export function YouTubePlayer({
     player.seekTo(time, true);
     setCurrentTime(time);
     onTimeUpdateRef.current?.(time);
-  };
-
-  const toggleCaptions = () => {
-    const player = playerRef.current;
-    if (!player) return;
-    if (captionsOn) {
-      player.unloadModule("captions");
-      setCaptionsOn(false);
-    } else {
-      player.loadModule("captions");
-      player.setOption("captions", "track", {});
-      setCaptionsOn(true);
-    }
   };
 
   const changeSpeed = (newSpeed: number) => {
@@ -465,16 +447,6 @@ export function YouTubePlayer({
                 </div>
               )}
             </div>
-
-            <button
-              type="button"
-              onClick={toggleCaptions}
-              disabled={!ready}
-              aria-label={captionsOn ? "إخفاء الترجمة" : "إظهار الترجمة"}
-              className={captionsOn ? "text-primary" : "text-white/90"}
-            >
-              {captionsOn ? <Captions className="size-5" /> : <CaptionsOff className="size-5" />}
-            </button>
 
             <button
               type="button"
