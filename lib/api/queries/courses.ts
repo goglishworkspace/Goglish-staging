@@ -24,6 +24,24 @@ export type Course = {
 
 export type CourseDetail = Course;
 
+export function useCourses(params?: { limit?: number; gradeId?: string; subjectId?: string }) {
+  const { limit, gradeId, subjectId } = params ?? {};
+  return useQuery({
+    queryKey: ["courses", "list", { limit, gradeId, subjectId }],
+    queryFn: async () => {
+      const { data } = await api.get<ApiSuccess<Course[]>>("/api/courses", {
+        params: {
+          ...(limit ? { limit } : {}),
+          ...(gradeId ? { grade_id: gradeId } : {}),
+          ...(subjectId ? { subject_id: subjectId } : {}),
+        },
+      });
+      return data.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCoursesBySubject(subjectId: string) {
   return useQuery({
     queryKey: ["courses", "subject", subjectId],

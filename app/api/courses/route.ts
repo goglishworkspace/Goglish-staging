@@ -10,11 +10,19 @@ import { attachCourseAccess } from "@/lib/services/entitlement.service";
 export async function GET(request: NextRequest) {
   const subjectId = request.nextUrl.searchParams.get("subject_id");
   const teacherId = request.nextUrl.searchParams.get("teacher_id");
+  const gradeId = request.nextUrl.searchParams.get("grade_id");
+  const limitParam = request.nextUrl.searchParams.get("limit");
   const supabase = await createClient();
 
   // RLS already scopes rows to "published, or mine to manage" - no extra
   // status filter needed here, it would only ever narrow what RLS allows.
-  let query = supabase.from("courses").select("*").is("deleted_at", null).order("created_at", { ascending: false });
+  // select("*, subjects!inner(...)") only when gradeId is actually filtered
+  // on, otherwise plain "*" - selecting the joined row unconditionally would
+  // leak a "subjects" key onto every course response even when unused.
+  let query = gradeId
+    ? supabase.from("courses").select("*, subjects!inner(grade_id)").eq("subjects.grade_id", gradeId)
+    : supabase.from("courses").select("*");
+  query = query.is("deleted_at", null).order("created_at", { ascending: false });
   if (subjectId) query = query.eq("subject_id", subjectId);
 
   if (teacherId) {
@@ -30,6 +38,9 @@ export async function GET(request: NextRequest) {
     if (!courseIds.length) return apiSuccess([], "تم جلب الكورسات");
     query = query.in("id", courseIds);
   }
+
+  const limit = limitParam ? Number(limitParam) : null;
+  if (limit && Number.isFinite(limit) && limit > 0) query = query.limit(limit);
 
   const { data, error } = await query;
   if (error) return apiError("تعذر جلب الكورسات", null, 500);

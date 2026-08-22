@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { TeachersSection } from "@/components/landing/TeachersSection";
+import { CoursesSection } from "@/components/landing/CoursesSection";
 import { FeaturedVideoSection } from "@/components/landing/FeaturedVideoSection";
 import { HonorBoardSection } from "@/components/landing/HonorBoardSection";
 import { CtaSection } from "@/components/landing/CtaSection";
@@ -69,6 +70,7 @@ export default async function HomePage() {
       />
       <HeroSection isLoggedIn={!!user} />
       <TeachersSection />
+      <CoursesSection />
       <FeaturedVideoSection />
       <HonorBoardSection />
       <section className="w-full px-4 py-16 sm:px-6 lg:px-8">

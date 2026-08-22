@@ -26,6 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/honor-board`, changeFrequency: "hourly", priority: 0.5 },
     { url: `${SITE_URL}/achievements`, changeFrequency: "daily", priority: 0.3 },
     { url: `${SITE_URL}/teachers`, changeFrequency: "weekly", priority: 0.5 },
+    { url: `${SITE_URL}/courses`, changeFrequency: "daily", priority: 0.7 },
   ];
 
   const courseRoutes: MetadataRoute.Sitemap = (courses ?? []).map((course) => ({
