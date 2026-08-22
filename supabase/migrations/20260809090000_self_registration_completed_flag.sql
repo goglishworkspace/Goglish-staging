@@ -10,7 +10,7 @@
 -- app/api/auth/login/route.ts uses this flag to retry completion on next
 -- login - see lib/services/self-registration.service.ts.
 alter table public.profiles
-  add column self_registration_completed_at timestamptz;
+  add column if not exists self_registration_completed_at timestamptz;
 
 create or replace function public.complete_self_registration(
   p_user_id uuid,

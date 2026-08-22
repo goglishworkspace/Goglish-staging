@@ -23,96 +23,96 @@
 -- itself is gone.
 
 alter table public.academic_calendar_events alter column created_by drop not null;
-alter table public.academic_calendar_events drop constraint academic_calendar_events_created_by_fkey;
+alter table public.academic_calendar_events drop constraint if exists academic_calendar_events_created_by_fkey;
 alter table public.academic_calendar_events add constraint academic_calendar_events_created_by_fkey
   foreign key (created_by) references auth.users(id) on delete set null;
 
 alter table public.announcements alter column created_by drop not null;
-alter table public.announcements drop constraint announcements_created_by_fkey;
+alter table public.announcements drop constraint if exists announcements_created_by_fkey;
 alter table public.announcements add constraint announcements_created_by_fkey
   foreign key (created_by) references auth.users(id) on delete set null;
 
 alter table public.course_bundles alter column created_by drop not null;
-alter table public.course_bundles drop constraint course_bundles_created_by_fkey;
+alter table public.course_bundles drop constraint if exists course_bundles_created_by_fkey;
 alter table public.course_bundles add constraint course_bundles_created_by_fkey
   foreign key (created_by) references auth.users(id) on delete set null;
 
-alter table public.courses drop constraint courses_reviewed_by_fkey;
+alter table public.courses drop constraint if exists courses_reviewed_by_fkey;
 alter table public.courses add constraint courses_reviewed_by_fkey
   foreign key (reviewed_by) references auth.users(id) on delete set null;
 
 alter table public.exams alter column created_by drop not null;
-alter table public.exams drop constraint exams_created_by_fkey;
+alter table public.exams drop constraint if exists exams_created_by_fkey;
 alter table public.exams add constraint exams_created_by_fkey
   foreign key (created_by) references auth.users(id) on delete set null;
 
-alter table public.exams drop constraint exams_deletion_requested_by_fkey;
+alter table public.exams drop constraint if exists exams_deletion_requested_by_fkey;
 alter table public.exams add constraint exams_deletion_requested_by_fkey
   foreign key (deletion_requested_by) references auth.users(id) on delete set null;
 
-alter table public.lesson_comments drop constraint lesson_comments_reviewed_by_fkey;
+alter table public.lesson_comments drop constraint if exists lesson_comments_reviewed_by_fkey;
 alter table public.lesson_comments add constraint lesson_comments_reviewed_by_fkey
   foreign key (reviewed_by) references auth.users(id) on delete set null;
 
 alter table public.lesson_resources alter column created_by drop not null;
-alter table public.lesson_resources drop constraint lesson_resources_created_by_fkey;
+alter table public.lesson_resources drop constraint if exists lesson_resources_created_by_fkey;
 alter table public.lesson_resources add constraint lesson_resources_created_by_fkey
   foreign key (created_by) references auth.users(id) on delete set null;
 
-alter table public.lesson_resources drop constraint lesson_resources_deletion_requested_by_fkey;
+alter table public.lesson_resources drop constraint if exists lesson_resources_deletion_requested_by_fkey;
 alter table public.lesson_resources add constraint lesson_resources_deletion_requested_by_fkey
   foreign key (deletion_requested_by) references auth.users(id) on delete set null;
 
 alter table public.lessons alter column created_by drop not null;
-alter table public.lessons drop constraint lessons_created_by_fkey;
+alter table public.lessons drop constraint if exists lessons_created_by_fkey;
 alter table public.lessons add constraint lessons_created_by_fkey
   foreign key (created_by) references auth.users(id) on delete set null;
 
-alter table public.lessons drop constraint lessons_reviewed_by_fkey;
+alter table public.lessons drop constraint if exists lessons_reviewed_by_fkey;
 alter table public.lessons add constraint lessons_reviewed_by_fkey
   foreign key (reviewed_by) references auth.users(id) on delete set null;
 
-alter table public.lessons drop constraint lessons_deletion_requested_by_fkey;
+alter table public.lessons drop constraint if exists lessons_deletion_requested_by_fkey;
 alter table public.lessons add constraint lessons_deletion_requested_by_fkey
   foreign key (deletion_requested_by) references auth.users(id) on delete set null;
 
 alter table public.media_files alter column uploaded_by drop not null;
-alter table public.media_files drop constraint media_files_uploaded_by_fkey;
+alter table public.media_files drop constraint if exists media_files_uploaded_by_fkey;
 alter table public.media_files add constraint media_files_uploaded_by_fkey
   foreign key (uploaded_by) references auth.users(id) on delete set null;
 
-alter table public.modules drop constraint modules_deletion_requested_by_fkey;
+alter table public.modules drop constraint if exists modules_deletion_requested_by_fkey;
 alter table public.modules add constraint modules_deletion_requested_by_fkey
   foreign key (deletion_requested_by) references auth.users(id) on delete set null;
 
-alter table public.platform_settings drop constraint platform_settings_updated_by_fkey;
+alter table public.platform_settings drop constraint if exists platform_settings_updated_by_fkey;
 alter table public.platform_settings add constraint platform_settings_updated_by_fkey
   foreign key (updated_by) references auth.users(id) on delete set null;
 
-alter table public.questions drop constraint questions_deletion_requested_by_fkey;
+alter table public.questions drop constraint if exists questions_deletion_requested_by_fkey;
 alter table public.questions add constraint questions_deletion_requested_by_fkey
   foreign key (deletion_requested_by) references auth.users(id) on delete set null;
 
 alter table public.quizzes alter column created_by drop not null;
-alter table public.quizzes drop constraint quizzes_created_by_fkey;
+alter table public.quizzes drop constraint if exists quizzes_created_by_fkey;
 alter table public.quizzes add constraint quizzes_created_by_fkey
   foreign key (created_by) references auth.users(id) on delete set null;
 
-alter table public.quizzes drop constraint quizzes_deletion_requested_by_fkey;
+alter table public.quizzes drop constraint if exists quizzes_deletion_requested_by_fkey;
 alter table public.quizzes add constraint quizzes_deletion_requested_by_fkey
   foreign key (deletion_requested_by) references auth.users(id) on delete set null;
 
 alter table public.refunds alter column processed_by drop not null;
-alter table public.refunds drop constraint refunds_processed_by_fkey;
+alter table public.refunds drop constraint if exists refunds_processed_by_fkey;
 alter table public.refunds add constraint refunds_processed_by_fkey
   foreign key (processed_by) references auth.users(id) on delete set null;
 
 alter table public.orders alter column user_id drop not null;
-alter table public.orders drop constraint orders_user_id_fkey;
+alter table public.orders drop constraint if exists orders_user_id_fkey;
 alter table public.orders add constraint orders_user_id_fkey
   foreign key (user_id) references auth.users(id) on delete set null;
 
 alter table public.invoices alter column user_id drop not null;
-alter table public.invoices drop constraint invoices_user_id_fkey;
+alter table public.invoices drop constraint if exists invoices_user_id_fkey;
 alter table public.invoices add constraint invoices_user_id_fkey
   foreign key (user_id) references auth.users(id) on delete set null;
