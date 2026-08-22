@@ -78,6 +78,15 @@ export class KashierProvider implements PaymentProvider {
         type: "one-time",
         description: `Goglish order ${params.orderId}`,
         serverWebhook: `${origin}/api/payments/webhooks/kasher`,
+        // Kashier's own docs list `customer` as optional (only needed with
+        // saveCard), but the live API started hard-rejecting every session
+        // with `"customer" is required` (2026-08-22) regardless - breaking
+        // every Kashier checkout in production. Sending it unconditionally
+        // fixes that; params.customerEmail is always populated for a real
+        // logged-in user (Supabase auth requires an email).
+        ...(params.customerEmail
+          ? { customer: { email: params.customerEmail, reference: params.customerEmail } }
+          : {}),
       }),
     });
 
