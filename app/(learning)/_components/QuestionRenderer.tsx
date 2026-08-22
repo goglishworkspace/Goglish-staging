@@ -1,5 +1,6 @@
 "use client";
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PublicQuestion } from "@/lib/services/attempt-start.service";
 
 export type ResponseValue = string | string[] | Array<{ left: string; right: string }>;
@@ -131,21 +132,23 @@ export function QuestionRenderer({
           {left.map((l) => (
             <div key={l.id} className="flex items-center justify-between gap-3">
               <span className="text-sm">{l.content}</span>
-              <select
+              <Select
                 value={pairByLeft.get(l.id) ?? ""}
-                onChange={(e) => setPair(l.id, e.target.value)}
-                className="rounded-lg border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-neutral-800"
+                onValueChange={(rightId) => setPair(l.id, rightId as string)}
                 disabled={disabled}
+                items={right.map((r) => ({ label: r.content, value: r.id }))}
               >
-                <option value="" disabled>
-                  اختر...
-                </option>
-                {right.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.content}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="اختر..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {right.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.content}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ))}
         </div>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -80,18 +81,21 @@ function CreateCouponDialog() {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="coupon-type">نوع الخصم</Label>
-            <select
-              id="coupon-type"
+            <Select
               value={discountType}
-              onChange={(e) => setDiscountType(e.target.value as Coupon["discount_type"])}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              onValueChange={(value) => setDiscountType(value as Coupon["discount_type"])}
             >
-              {Object.entries(DISCOUNT_TYPE_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="coupon-type">
+                <SelectValue>{(value: Coupon["discount_type"]) => DISCOUNT_TYPE_LABEL[value]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(DISCOUNT_TYPE_LABEL).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {(discountType === "percent" || discountType === "fixed") && (
             <div className="flex flex-col gap-1.5">

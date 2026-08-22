@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -186,18 +187,23 @@ export function UserManageDialog({
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <Select
                 value={roleToAssign}
-                onChange={(e) => setRoleToAssign(e.target.value)}
-                className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                onValueChange={(value) => setRoleToAssign(value as string)}
+                items={[{ label: "اختر دور", value: "" }, ...assignableRoles.map((role) => ({ label: role, value: role }))]}
               >
-                <option value="">اختر دور</option>
-                {assignableRoles.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="اختر دور" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">اختر دور</SelectItem>
+                  {assignableRoles.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button
                 size="sm"
                 disabled={

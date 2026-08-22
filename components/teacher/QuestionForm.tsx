@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { QuestionInput } from "@/lib/api/queries/question-types";
 
-const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+const QUESTION_TYPE_LABEL = { mcq: "اختيار من متعدد", true_false: "صح / غلط" } as const;
 
 /** Shared between the per-lesson quiz builder and the per-course exam
  * builder - only the parent id (quiz vs exam) differs, which the caller
@@ -70,10 +70,15 @@ export function QuestionForm({
     <form onSubmit={onFormSubmit} className="flex w-full flex-col gap-3 rounded-lg border border-border p-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="question-type">نوع السؤال</Label>
-        <select id="question-type" value={type} onChange={(e) => setType(e.target.value as "mcq" | "true_false")} className={SELECT_CLASS}>
-          <option value="mcq">اختيار من متعدد</option>
-          <option value="true_false">صح / غلط</option>
-        </select>
+        <Select value={type} onValueChange={(value) => setType(value as "mcq" | "true_false")}>
+          <SelectTrigger id="question-type">
+            <SelectValue>{(value: "mcq" | "true_false") => QUESTION_TYPE_LABEL[value]}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mcq">{QUESTION_TYPE_LABEL.mcq}</SelectItem>
+            <SelectItem value="true_false">{QUESTION_TYPE_LABEL.true_false}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex flex-col gap-1.5">

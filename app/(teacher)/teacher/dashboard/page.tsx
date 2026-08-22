@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -105,19 +106,23 @@ function CreateCourseDialog({ teacherId }: { teacherId: string }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="course-subject">المادة</Label>
-            <select
-              id="course-subject"
+            <Select
               value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              onValueChange={(value) => setSubjectId(value as string)}
+              items={[{ label: "اختر مادة", value: "" }, ...(subjects ?? []).map((s) => ({ label: s.name, value: s.id }))]}
             >
-              <option value="">اختر مادة</option>
-              {subjects?.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="course-subject">
+                <SelectValue placeholder="اختر مادة" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">اختر مادة</SelectItem>
+                {subjects?.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="course-price">السعر (ج.م)</Label>

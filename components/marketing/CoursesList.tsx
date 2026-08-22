@@ -6,6 +6,7 @@ import { useGrades } from "@/lib/api/queries/grades";
 import { useSubjects } from "@/lib/api/queries/subjects";
 import { useCourses } from "@/lib/api/queries/courses";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CourseCard } from "./CourseCard";
 
 function FilterButton({
@@ -69,25 +70,29 @@ export function CoursesList() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label htmlFor="course-subject-filter" className="text-caption font-medium text-muted-foreground">
+          <span id="course-subject-filter-label" className="text-caption font-medium text-muted-foreground">
             المادة
-          </label>
+          </span>
           {subjectsLoading ? (
             <Skeleton className="h-8 w-48 rounded-lg" />
           ) : (
-            <select
-              id="course-subject-filter"
+            <Select
               value={subjectId ?? ""}
-              onChange={(e) => setSubjectId(e.target.value || undefined)}
-              className="h-8 w-full max-w-xs rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              onValueChange={(value) => setSubjectId((value as string) || undefined)}
+              items={[{ label: "الكل", value: "" }, ...(subjects ?? []).map((s) => ({ label: s.name, value: s.id }))]}
             >
-              <option value="">الكل</option>
-              {subjects?.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-labelledby="course-subject-filter-label" className="max-w-xs">
+                <SelectValue placeholder="الكل" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">الكل</SelectItem>
+                {subjects?.map((subject) => (
+                  <SelectItem key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </div>
       </div>

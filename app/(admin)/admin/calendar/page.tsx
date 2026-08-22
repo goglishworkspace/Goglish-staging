@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   useCalendarEvents,
@@ -72,18 +73,18 @@ function CreateEventDialog() {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="event-type">النوع</Label>
-            <select
-              id="event-type"
-              value={eventType}
-              onChange={(e) => setEventType(e.target.value as CalendarEventType)}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-            >
-              {Object.entries(EVENT_TYPE_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <Select value={eventType} onValueChange={(value) => setEventType(value as CalendarEventType)}>
+              <SelectTrigger id="event-type">
+                <SelectValue>{(value: CalendarEventType) => EVENT_TYPE_LABEL[value]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(EVENT_TYPE_LABEL).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="event-date">التاريخ والوقت</Label>

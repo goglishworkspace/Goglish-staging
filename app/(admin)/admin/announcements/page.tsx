@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   useAnnouncements,
@@ -27,6 +28,11 @@ const GRADE_LABEL: Record<AnnouncementGrade, string> = {
   grade1: "أولى ثانوي",
   grade2: "ثانية ثانوي",
   grade3: "ثالثة ثانوي",
+};
+
+const TARGET_LABEL: Record<AnnouncementTarget, string> = {
+  all: "كل الطلاب",
+  grade: "صف دراسي معين",
 };
 
 function CreateAnnouncementDialog() {
@@ -84,31 +90,31 @@ function CreateAnnouncementDialog() {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="announcement-target">المستهدفون</Label>
-            <select
-              id="announcement-target"
-              value={target}
-              onChange={(e) => setTarget(e.target.value as AnnouncementTarget)}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-            >
-              <option value="all">كل الطلاب</option>
-              <option value="grade">صف دراسي معين</option>
-            </select>
+            <Select value={target} onValueChange={(value) => setTarget(value as AnnouncementTarget)}>
+              <SelectTrigger id="announcement-target">
+                <SelectValue>{(value: AnnouncementTarget) => TARGET_LABEL[value]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{TARGET_LABEL.all}</SelectItem>
+                <SelectItem value="grade">{TARGET_LABEL.grade}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {target === "grade" && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="announcement-grade">الصف</Label>
-              <select
-                id="announcement-grade"
-                value={targetGrade}
-                onChange={(e) => setTargetGrade(e.target.value as AnnouncementGrade)}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-              >
-                {Object.entries(GRADE_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <Select value={targetGrade} onValueChange={(value) => setTargetGrade(value as AnnouncementGrade)}>
+                <SelectTrigger id="announcement-grade">
+                  <SelectValue>{(value: AnnouncementGrade) => GRADE_LABEL[value]}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(GRADE_LABEL).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
           <DialogFooter>

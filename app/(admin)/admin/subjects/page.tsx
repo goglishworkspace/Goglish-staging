@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -111,35 +112,46 @@ function CreateSubjectDialog() {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="subject-grade">الصف الدراسي</Label>
-            <select
-              id="subject-grade"
+            <Select
               value={gradeId}
-              onChange={(e) => setGradeId(e.target.value)}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              onValueChange={(value) => setGradeId(value as string)}
+              items={[{ label: "اختر صف", value: "" }, ...(grades ?? []).map((g) => ({ label: g.name, value: g.id }))]}
             >
-              <option value="">اختر صف</option>
-              {grades?.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="subject-grade">
+                <SelectValue placeholder="اختر صف" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">اختر صف</SelectItem>
+                {grades?.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="subject-teacher">المدرس الأساسي (اختياري)</Label>
-            <select
-              id="subject-teacher"
+            <Select
               value={teacherId}
-              onChange={(e) => setTeacherId(e.target.value)}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              onValueChange={(value) => setTeacherId(value as string)}
+              items={[
+                { label: "بدون تحديد", value: "" },
+                ...(teachers ?? []).map((t) => ({ label: getTeacherProfile(t)?.display_name ?? t.id, value: t.id })),
+              ]}
             >
-              <option value="">بدون تحديد</option>
-              {teachers?.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {getTeacherProfile(t)?.display_name ?? t.id}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="subject-teacher">
+                <SelectValue placeholder="بدون تحديد" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">بدون تحديد</SelectItem>
+                {teachers?.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {getTeacherProfile(t)?.display_name ?? t.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={createSubject.isPending}>
