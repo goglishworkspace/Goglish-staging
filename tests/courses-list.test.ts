@@ -35,4 +35,19 @@ describe("GET /api/courses listing filters", () => {
     expect(nonMatching.status).toBe(200);
     expect(nonMatching.json?.data?.some((c) => c.id === courseId)).toBe(false);
   });
+
+  it("embeds the course's subject and grade name for CourseCard to display", async () => {
+    const { admin, teacher, courseId } = await createPublishedLesson();
+    registry.track(admin.userId);
+    registry.track(teacher.userId);
+
+    const anon = createTestClient();
+    // Deliberately no query params - exercises the plain (non-!inner) select branch.
+    const res = await anon.get<
+      Array<{ id: string; subjects: { name: string; grades: { name: string } | null } | null }>
+    >("/api/courses");
+    const course = res.json?.data?.find((c) => c.id === courseId);
+    expect(course?.subjects?.name).toBeTruthy();
+    expect(course?.subjects?.grades?.name).toBe("أولى ثانوي");
+  });
 });

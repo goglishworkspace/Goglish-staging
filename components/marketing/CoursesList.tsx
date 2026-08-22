@@ -69,18 +69,26 @@ export function CoursesList() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-caption font-medium text-muted-foreground">المادة</span>
-          <div className="flex flex-wrap gap-2">
-            <FilterButton active={!subjectId} onClick={() => setSubjectId(undefined)}>
-              الكل
-            </FilterButton>
-            {subjectsLoading && <Skeleton className="h-8 w-24 rounded-full" />}
-            {subjects?.map((subject) => (
-              <FilterButton key={subject.id} active={subjectId === subject.id} onClick={() => setSubjectId(subject.id)}>
-                {subject.name}
-              </FilterButton>
-            ))}
-          </div>
+          <label htmlFor="course-subject-filter" className="text-caption font-medium text-muted-foreground">
+            المادة
+          </label>
+          {subjectsLoading ? (
+            <Skeleton className="h-8 w-48 rounded-lg" />
+          ) : (
+            <select
+              id="course-subject-filter"
+              value={subjectId ?? ""}
+              onChange={(e) => setSubjectId(e.target.value || undefined)}
+              className="h-8 w-full max-w-xs rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            >
+              <option value="">الكل</option>
+              {subjects?.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 

@@ -3,12 +3,13 @@ import { PlayCircle, ShoppingCart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Course } from "@/lib/api/queries/courses";
+import { courseGradeName, type Course } from "@/lib/api/queries/courses";
 
 export function CourseCard({ course, showTeacher = true }: { course: Course; showTeacher?: boolean }) {
   const teacherNames = course.teachers
     .map((t) => t.display_name)
     .filter((name): name is string => !!name);
+  const gradeName = courseGradeName(course);
 
   return (
     <Link href={`/courses/${course.id}`}>
@@ -36,6 +37,7 @@ export function CourseCard({ course, showTeacher = true }: { course: Course; sho
           {showTeacher && !!teacherNames.length && (
             <p className="line-clamp-1 text-caption text-muted-foreground">{teacherNames.join("، ")}</p>
           )}
+          {gradeName && <p className="line-clamp-1 text-caption text-muted-foreground">{gradeName}</p>}
           {course.description && (
             <p className="line-clamp-2 text-small text-muted-foreground">{course.description}</p>
           )}

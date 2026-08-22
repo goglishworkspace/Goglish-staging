@@ -16,12 +16,13 @@ export async function GET(request: NextRequest) {
 
   // RLS already scopes rows to "published, or mine to manage" - no extra
   // status filter needed here, it would only ever narrow what RLS allows.
-  // select("*, subjects!inner(...)") only when gradeId is actually filtered
-  // on, otherwise plain "*" - selecting the joined row unconditionally would
-  // leak a "subjects" key onto every course response even when unused.
+  // subjects(name, grades(name)) is always selected - CourseCard shows the
+  // course's grade under the teacher name. !inner only when gradeId is
+  // actually filtered on, so the filter genuinely excludes non-matching
+  // rows rather than just nulling out their embedded subject.
   let query = gradeId
-    ? supabase.from("courses").select("*, subjects!inner(grade_id)").eq("subjects.grade_id", gradeId)
-    : supabase.from("courses").select("*");
+    ? supabase.from("courses").select("*, subjects!inner(name, grades(name))").eq("subjects.grade_id", gradeId)
+    : supabase.from("courses").select("*, subjects(name, grades(name))");
   query = query.is("deleted_at", null).order("created_at", { ascending: false });
   if (subjectId) query = query.eq("subject_id", subjectId);
 

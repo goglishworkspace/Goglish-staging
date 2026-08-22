@@ -4,6 +4,16 @@ import type { ApiSuccess } from "@/lib/api/response";
 
 export type CourseTeacher = { id: string; display_name: string | null };
 
+// Supabase returns a many-to-one embed (courses.subject_id -> subjects.id,
+// and subjects.grade_id -> grades.id) as a single object normally, but the
+// generated type allows either shape - defensive unwrapping at the read
+// site (see CourseCard) matches this codebase's established convention for
+// nested embeds.
+export type CourseSubject = {
+  name: string;
+  grades: { name: string } | { name: string }[] | null;
+} | null;
+
 export type Course = {
   id: string;
   subject_id: string;
@@ -20,9 +30,17 @@ export type Course = {
   trailer_youtube_id: string | null;
   teachers: CourseTeacher[];
   has_access: boolean;
+  subjects?: CourseSubject | CourseSubject[];
 };
 
 export type CourseDetail = Course;
+
+export function courseGradeName(course: Course): string | null {
+  const subject = Array.isArray(course.subjects) ? course.subjects[0] : course.subjects;
+  const grades = subject?.grades;
+  const grade = Array.isArray(grades) ? grades[0] : grades;
+  return grade?.name ?? null;
+}
 
 export function useCourses(params?: { limit?: number; gradeId?: string; subjectId?: string }) {
   const { limit, gradeId, subjectId } = params ?? {};

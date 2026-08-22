@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data, error } = await supabase
     .from("course_bundles")
-    .select("*, bundle_courses(course_id, courses(*))")
+    .select("*, bundle_courses(course_id, courses(*, subjects(name, grades(name))))")
     .eq("id", id)
     .maybeSingle();
   if (error) return apiError("تعذر جلب الباقة", null, 500);
