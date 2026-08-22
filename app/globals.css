@@ -5,6 +5,15 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Native form controls (a <select>'s open dropdown popup, date pickers,
+     etc.) are drawn by the browser/OS, not by our CSS - without this, that
+     popup always uses a light background by default regardless of our own
+     dark mode, while its text still inherits our dark-mode (light-colored)
+     text color: white-on-white until the browser's own hover highlight
+     forces contrast. This tells the browser which palette to draw them in,
+     matching the .dark class below. */
+  color-scheme: light;
+
   /* Section 29 brand colors. --brand-accent is deliberately NOT aliased to
      Tailwind's --color-accent below - that token drives shadcn's hover/active
      surface color (ghost button hover, dropdown item hover, etc.) and would be
@@ -134,6 +143,7 @@ body {
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
