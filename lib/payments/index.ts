@@ -3,12 +3,14 @@ import type { PaymentProvider, PaymentProviderName } from "./types";
 import { StripeProvider } from "./stripe.provider";
 import { StubPaymentProvider } from "./stub.provider";
 import { KashierProvider } from "./kashier.provider";
+import { DaffaaProvider } from "./daffaa.provider";
 
 export * from "./types";
 
 const providers: Partial<Record<PaymentProviderName, PaymentProvider>> = {
   stripe: new StripeProvider(),
   kasher: new KashierProvider(),
+  daffaa: new DaffaaProvider(),
 };
 
 // The remaining Egyptian-gateway stubs (Paymob/Vodafone Cash/Instapay) can't

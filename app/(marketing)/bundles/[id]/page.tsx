@@ -17,6 +17,9 @@ export default function BundlePage({ params }: { params: Promise<{ id: string }>
   const { data: bundle, isLoading, isError } = useBundle(id);
   const [enrolling, setEnrolling] = useState(false);
   const [couponCode, setCouponCode] = useState("");
+  const [provider, setProvider] = useState<"kasher" | "daffaa">(
+    (process.env.NEXT_PUBLIC_DEFAULT_PAYMENT_PROVIDER as "kasher" | "daffaa") || "kasher",
+  );
 
   useEffect(() => {
     if (bundle) document.title = `${bundle.title} | Goglish`;
@@ -36,7 +39,7 @@ export default function BundlePage({ params }: { params: Promise<{ id: string }>
       }
 
       const payment = await postJson<{ checkout_url: string }>(`/api/orders/${order.data.id}/pay`, {
-        provider: process.env.NEXT_PUBLIC_DEFAULT_PAYMENT_PROVIDER || "stripe",
+        provider,
       });
       if (!payment.success) {
         toast.error(payment.message);
@@ -99,6 +102,24 @@ export default function BundlePage({ params }: { params: Promise<{ id: string }>
                     placeholder="كود الخصم (اختياري)"
                     aria-label="كود الخصم"
                   />
+                  {bundle.price_cents > 0 && (
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1"
+                        variant={provider === "kasher" ? "default" : "outline"}
+                        onClick={() => setProvider("kasher")}
+                      >
+                        كاشير
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        variant={provider === "daffaa" ? "default" : "outline"}
+                        onClick={() => setProvider("daffaa")}
+                      >
+                        محفظة / إنستاباي
+                      </Button>
+                    </div>
+                  )}
                   <Button className="w-full" disabled={enrolling} onClick={onEnroll}>
                     {enrolling ? "جاري التحضير..." : "اشترك في الباقة"}
                   </Button>

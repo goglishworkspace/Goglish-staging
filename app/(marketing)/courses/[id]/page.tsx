@@ -29,6 +29,9 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const { data: progress } = useCourseProgress(id, { enabled: !!course?.has_access });
   const [enrolling, setEnrolling] = useState(false);
   const [couponCode, setCouponCode] = useState("");
+  const [provider, setProvider] = useState<"kasher" | "daffaa">(
+    (process.env.NEXT_PUBLIC_DEFAULT_PAYMENT_PROVIDER as "kasher" | "daffaa") || "kasher",
+  );
   const { data: profile } = useProfile();
   const { data: wishlistCourses } = useWishlistCourses({ enabled: !!profile });
   const addWishlist = useAddWishlistCourse();
@@ -65,11 +68,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
       }
 
       const payment = await postJson<{ checkout_url: string }>(`/api/orders/${order.data.id}/pay`, {
-        // vodafone_cash was hardcoded here (P4.11) - it's a dev/test-only stub
-        // (lib/payments/index.ts), never registered in production, so every
-        // enrollment through this page was silently broken in prod. stripe is
-        // the only real, always-registered provider.
-        provider: process.env.NEXT_PUBLIC_DEFAULT_PAYMENT_PROVIDER || "stripe",
+        provider,
       });
       if (!payment.success) {
         toast.error(payment.message);
@@ -167,6 +166,24 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                     placeholder="كود الخصم (اختياري)"
                     aria-label="كود الخصم"
                   />
+                  {course.price_cents > 0 && (
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1"
+                        variant={provider === "kasher" ? "default" : "outline"}
+                        onClick={() => setProvider("kasher")}
+                      >
+                        كاشير
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        variant={provider === "daffaa" ? "default" : "outline"}
+                        onClick={() => setProvider("daffaa")}
+                      >
+                        محفظة / إنستاباي
+                      </Button>
+                    </div>
+                  )}
                   <Button className="w-full" disabled={enrolling} onClick={onEnroll}>
                     {enrolling ? "جاري التحضير..." : "اشترك الآن"}
                   </Button>

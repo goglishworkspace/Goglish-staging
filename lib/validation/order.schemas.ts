@@ -8,6 +8,6 @@ export const createOrderSchema = z.object({
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
 export const payOrderSchema = z.object({
-  provider: z.enum(["stripe", "paymob", "vodafone_cash", "instapay", "kasher"]),
+  provider: z.enum(["stripe", "paymob", "vodafone_cash", "instapay", "kasher", "daffaa"]),
 });
 export type PayOrderInput = z.infer<typeof payOrderSchema>;

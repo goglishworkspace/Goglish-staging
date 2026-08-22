@@ -133,4 +133,44 @@ describe("order -> pay -> webhook fulfillment", () => {
       .maybeSingle();
     expect(entitlement).toBeNull();
   });
+
+  // Daffaa (github.com/mashroecom/daffaa-sdks) has no hosted checkout
+  // session to create - createCheckout() just builds a URL to our own
+  // /checkout/daffaa page, so this runs without real Daffaa credentials
+  // (same reason Kashier, the other real gateway, has no test coverage here).
+  it("points a daffaa payment at our own /checkout/daffaa page with the order amount", async () => {
+    const { admin, teacher, courseId } = await createPricedCourse(7500);
+    registry.track(admin.userId);
+    registry.track(teacher.userId);
+    const { client, userId } = await createLoggedInStudent();
+    registry.track(userId);
+
+    const { json: orderJson } = await client.post<{ id: string; total_cents: number }>("/api/orders", {
+      item_type: "course",
+      item_id: courseId,
+    });
+    const orderId = orderJson!.data!.id;
+
+    const { status: payStatus, json: payJson } = await client.post<{
+      payment_id: string;
+      checkout_url: string;
+    }>(`/api/orders/${orderId}/pay`, { provider: "daffaa" });
+    expect(payStatus).toBe(201);
+    const checkoutUrl = new URL(payJson!.data!.checkout_url);
+    expect(checkoutUrl.pathname).toMatch(/^\/checkout\/daffaa\//);
+    // total_cents includes VAT (TAX_RATE_PERCENT) on top of the 7500 base
+    // price set above, so assert against the order's own total rather than
+    // the base price.
+    expect(checkoutUrl.searchParams.get("amount_cents")).toBe(String(orderJson!.data!.total_cents));
+    expect(checkoutUrl.searchParams.get("currency")).toBe("EGP");
+
+    const supabase = createAdminClient();
+    const { data: payment } = await supabase
+      .from("payments")
+      .select("provider, status")
+      .eq("order_id", orderId)
+      .single();
+    expect(payment?.provider).toBe("daffaa");
+    expect(payment?.status).toBe("processing");
+  });
 });

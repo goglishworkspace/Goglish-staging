@@ -1,4 +1,4 @@
-export type PaymentProviderName = "stripe" | "paymob" | "vodafone_cash" | "instapay" | "kasher";
+export type PaymentProviderName = "stripe" | "paymob" | "vodafone_cash" | "instapay" | "kasher" | "daffaa";
 
 export type CreateCheckoutParams = {
   orderId: string;
