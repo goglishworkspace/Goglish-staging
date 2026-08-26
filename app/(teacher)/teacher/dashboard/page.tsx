@@ -172,7 +172,6 @@ function CreateCourseDialog({ teacherId }: { teacherId: string }) {
 }
 
 function EditCourseDialog({ course }: { course: Course }) {
-  const canEditDetails = course.status === "draft" || course.status === "rejected";
   const updateCourse = useUpdateCourse();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(course.title);
@@ -183,7 +182,7 @@ function EditCourseDialog({ course }: { course: Course }) {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (canEditDetails && !title.trim()) {
+    if (!title.trim()) {
       toast.error("العنوان مطلوب");
       return;
     }
@@ -193,13 +192,11 @@ function EditCourseDialog({ course }: { course: Course }) {
       cover_image_url?: string;
       trailer_youtube_id?: string;
       price_cents?: number;
-    } = canEditDetails
-      ? {
-          title: title.trim(),
-          description: description.trim() || undefined,
-          cover_image_url: coverImageUrl.trim() || undefined,
-        }
-      : {};
+    } = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      cover_image_url: coverImageUrl.trim() || undefined,
+    };
     if (trailerUrl.trim()) {
       const videoId = extractYouTubeId(trailerUrl);
       if (!videoId) {
@@ -214,18 +211,13 @@ function EditCourseDialog({ course }: { course: Course }) {
       return;
     }
     const priceCents = Math.round(price * 100);
-    if (priceCents !== course.price_cents) {
-      input.price_cents = priceCents;
-    }
-    if (Object.keys(input).length === 0) {
-      toast.error("مفيش تغييرات لحفظها");
-      return;
-    }
+    input.price_cents = priceCents;
+
     updateCourse.mutate(
       { courseId: course.id, input },
       {
         onSuccess: () => {
-          toast.success("تم تحديث الكورس");
+          toast.success("تم حفظ التعديلات وإرسالها للمراجعة بنجاح");
           setOpen(false);
           setTrailerUrl("");
         },
@@ -239,21 +231,16 @@ function EditCourseDialog({ course }: { course: Course }) {
       <DialogTrigger render={<Button size="sm" variant="outline" />}>تعديل</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>تعديل الكورس</DialogTitle>
+          <DialogTitle>تعديل بيانات الكورس</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          {!canEditDetails && (
-            <p className="text-caption text-muted-foreground">
-              الكورس منشور بالفعل، فمينفعش تعدّل العنوان أو الوصف أو صورة الكورس - بس تقدر تغيّر السعر أو الفيديو التشويقي.
-            </p>
-          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="edit-course-title">عنوان الكورس</Label>
             <Input
               id="edit-course-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              disabled={!canEditDetails}
+              required
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -263,7 +250,7 @@ function EditCourseDialog({ course }: { course: Course }) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              disabled={!canEditDetails}
+              placeholder="اكتب وصفاً للكورس..."
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -273,7 +260,6 @@ function EditCourseDialog({ course }: { course: Course }) {
               value={coverImageUrl}
               onChange={(e) => setCoverImageUrl(e.target.value)}
               placeholder="https://..."
-              disabled={!canEditDetails}
             />
             <p className="text-caption text-muted-foreground">
               الصورة دي بتظهر في كارت الكورس في كل مكان في المنصة عشان تشد الطالب - حط رابط صورة من الإنترنت.
@@ -289,7 +275,7 @@ function EditCourseDialog({ course }: { course: Course }) {
               value={priceEgp}
               onChange={(e) => setPriceEgp(e.target.value)}
             />
-            <p className="text-caption text-muted-foreground">حط 0 لو عايز الكورس يبقى مجاني. السعر بيتغير في أي وقت حتى لو الكورس منشور.</p>
+            <p className="text-caption text-muted-foreground">حط 0 لو عايز الكورس يبقى مجاني.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="edit-course-trailer">رابط فيديو تشويقي {course.trailer_youtube_id && "(محدّث حاليًا)"}</Label>
@@ -305,7 +291,7 @@ function EditCourseDialog({ course }: { course: Course }) {
           </div>
           <DialogFooter>
             <Button type="submit" disabled={updateCourse.isPending}>
-              حفظ
+              حفظ التعديلات وإرسالها 📤
             </Button>
           </DialogFooter>
         </form>
