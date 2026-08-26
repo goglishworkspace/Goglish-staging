@@ -187,13 +187,13 @@ export default function AdminCoursesPage() {
     );
   };
 
-  const awaitingCount = courses?.filter((c) => c.status === "draft" && c.submitted_at)?.length ?? 0;
+  const awaitingCount = courses?.filter((c) => !!c.submitted_at)?.length ?? 0;
 
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-h2 text-secondary dark:text-white">الكورسات والموافقات</h1>
-        {awaitingCount > 0 && <p className="text-small text-muted-foreground">{awaitingCount} كورس في انتظار المراجعة</p>}
+        {awaitingCount > 0 && <p className="text-small text-muted-foreground">{awaitingCount} كورس في انتظار المراجعة والتعديلات</p>}
       </div>
 
       {!lessonsLoading && !!pendingLessons?.length && (
@@ -248,7 +248,11 @@ export default function AdminCoursesPage() {
               }
               return (
                 <TableRow key={course.id}>
-                  <TableCell className="font-medium">{course.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/teacher/courses/${course.id}`} className="hover:underline text-primary">
+                      {course.title}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <ContentStatusBadge status={course.status} submittedAt={course.submitted_at} />
                   </TableCell>
@@ -258,7 +262,7 @@ export default function AdminCoursesPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {course.status === "draft" && course.submitted_at && (
+                      {course.submitted_at && (
                         <>
                           <Button size="sm" disabled={reviewCourse.isPending} onClick={() => onApprove(course.id)}>
                             موافقة
@@ -268,6 +272,11 @@ export default function AdminCoursesPage() {
                           </Button>
                         </>
                       )}
+                      <Link href={`/teacher/courses/${course.id}`}>
+                        <Button size="sm" variant="outline" type="button">
+                          تعديل
+                        </Button>
+                      </Link>
                       <Button size="sm" variant="destructive" onClick={() => setDeletingCourseId(course.id)}>
                         حذف
                       </Button>

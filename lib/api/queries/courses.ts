@@ -134,6 +134,7 @@ export function useSubmitCourseForReview() {
 export type UpdateCourseInput = {
   title?: string;
   description?: string;
+  cover_image_url?: string;
   trailer_youtube_id?: string;
   price_cents?: number;
 };

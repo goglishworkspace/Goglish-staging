@@ -22,7 +22,6 @@ export async function GET() {
   const { data, error } = await supabase
     .from("lessons")
     .select("id, title, status, submitted_at, module_id, modules(title, course_id, courses(title))")
-    .eq("status", "draft")
     .not("submitted_at", "is", null)
     .is("deleted_at", null)
     .order("submitted_at", { ascending: true });

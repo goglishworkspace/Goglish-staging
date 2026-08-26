@@ -43,16 +43,35 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return apiError("بيانات غير صالحة", zodErrorsToApiErrors(parsed.error), 422);
   }
 
+  let isAdmin = false;
+  try {
+    const { data: roleCheck } = await supabase.rpc("user_has_any_role", {
+      p_roles: ["admin", "super_admin", "moderator", "content_manager"],
+    });
+    isAdmin = !!roleCheck;
+  } catch {
+    isAdmin = false;
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    ...parsed.data,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!isAdmin) {
+    updatePayload.submitted_at = new Date().toISOString();
+  }
+
   const { data, error } = await supabase
     .from("lessons")
-    .update(parsed.data)
+    .update(updatePayload)
     .eq("id", id)
     .select(LESSON_COLUMNS)
     .maybeSingle();
 
   if (error) return apiError("تعذر تحديث الدرس", null, 400);
-  if (!data) return apiError("الدرس غير موجود أو مش مسموح تعدّله (لازم يكون Draft/Rejected)", null, 403);
-  return apiSuccess(data, "تم تحديث الدرس");
+  if (!data) return apiError("الدرس غير موجود أو ليس لديك صلاحية تعديله", null, 403);
+  return apiSuccess(data, isAdmin ? "تم تحديث الدرس" : "تم حفظ التعديلات وإرسالها للمراجعة");
 }
 
 // Soft delete only (Section 23).

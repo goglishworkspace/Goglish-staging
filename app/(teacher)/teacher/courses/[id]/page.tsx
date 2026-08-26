@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Edit3, Send, DollarSign, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContentStatusBadge } from "@/components/shared/ContentStatusBadge";
 import { QuestionForm } from "@/components/teacher/QuestionForm";
-import { useCourse } from "@/lib/api/queries/courses";
+import { useCourse, useUpdateCourse, useSubmitCourseForReview, type Course } from "@/lib/api/queries/courses";
 import {
   useCourseModules,
   useModuleLessons,
@@ -948,20 +948,205 @@ function CourseExamsSection({ courseId }: { courseId: string }) {
   );
 }
 
+function EditCourseDialog({
+  course,
+  open,
+  onOpenChange,
+}: {
+  course: Course;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const updateCourse = useUpdateCourse();
+  const [title, setTitle] = useState(course.title);
+  const [description, setDescription] = useState(course.description ?? "");
+  const [coverImageUrl, setCoverImageUrl] = useState(course.cover_image_url ?? "");
+  const [trailerUrl, setTrailerUrl] = useState(
+    course.trailer_youtube_id ? `https://www.youtube.com/watch?v=${course.trailer_youtube_id}` : ""
+  );
+  const [priceEgp, setPriceEgp] = useState((course.price_cents / 100).toString());
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      toast.error("عنوان الكورس مطلوب");
+      return;
+    }
+
+    let trailerId: string | undefined = undefined;
+    if (trailerUrl.trim()) {
+      const extracted = extractYouTubeId(trailerUrl);
+      if (!extracted) {
+        toast.error("رابط فيديو البرومو غير صالح");
+        return;
+      }
+      trailerId = extracted;
+    }
+
+    const priceCents = priceEgp.trim() ? Math.round(Number(priceEgp) * 100) : 0;
+
+    updateCourse.mutate(
+      {
+        courseId: course.id,
+        input: {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          cover_image_url: coverImageUrl.trim() || undefined,
+          trailer_youtube_id: trailerId,
+          price_cents: priceCents >= 0 ? priceCents : 0,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success("تم حفظ التعديلات بنجاح وإرسالها للمراجعة");
+          onOpenChange(false);
+        },
+        onError: (err) => toast.error(apiErrorMessage(err, "تعذر تحديث الكورس")),
+      }
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>تعديل بيانات الكورس</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="course-title">اسم / عنوان الكورس</Label>
+            <Input id="course-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="course-desc">وصف الكورس</Label>
+            <Textarea
+              id="course-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="اكتب وصفاً مفصلاً ومميزات الكورس..."
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="course-cover">رابط صورة الغلاف (Cover Image URL)</Label>
+            <Input
+              id="course-cover"
+              dir="ltr"
+              value={coverImageUrl}
+              onChange={(e) => setCoverImageUrl(e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="course-trailer">فيديو البرومو (يوتيوب)</Label>
+              <Input
+                id="course-trailer"
+                dir="ltr"
+                value={trailerUrl}
+                onChange={(e) => setTrailerUrl(e.target.value)}
+                placeholder="https://youtube.com/..."
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="course-price">السعر (جنيه مصري)</Label>
+              <Input
+                id="course-price"
+                type="number"
+                min="0"
+                step="5"
+                value={priceEgp}
+                onChange={(e) => setPriceEgp(e.target.value)}
+                placeholder="مثلاً: 250"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-2">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              إلغاء
+            </Button>
+            <Button type="submit" disabled={updateCourse.isPending}>
+              {updateCourse.isPending ? "جاري الحفظ..." : "حفظ التعديلات وإرسالها 📤"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TeacherCourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: course, isLoading: courseLoading } = useCourse(id);
   const { data: modules, isLoading: modulesLoading } = useCourseModules(id);
+  const submitCourse = useSubmitCourseForReview();
   const [addingModule, setAddingModule] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(false);
+
+  const onSubmitForReview = () => {
+    submitCourse.mutate(id, {
+      onSuccess: () => toast.success("تم إرسال الكورس للمراجعة من قبل الإدارة"),
+      onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال الكورس للمراجعة")),
+    });
+  };
 
   return (
     <div className="flex w-full flex-col gap-6">
       {courseLoading ? (
         <Skeleton className="h-9 w-64" />
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-h2 text-secondary dark:text-white">{course?.title}</h1>
-          {course && <ContentStatusBadge status={course.status} submittedAt={course.submitted_at} />}
+        <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h1 className="text-h2 text-secondary dark:text-white">{course?.title}</h1>
+              {course && <ContentStatusBadge status={course.status} submittedAt={course.submitted_at} />}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {course && (
+                <Button variant="outline" onClick={() => setEditingCourse(true)}>
+                  <Edit3 className="size-4" />
+                  تعديل بيانات الكورس
+                </Button>
+              )}
+              {course && course.status !== "published" && (
+                <Button disabled={submitCourse.isPending} onClick={onSubmitForReview}>
+                  <Send className="size-4" />
+                  إرسال للمراجعة
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {course?.description && (
+            <p className="text-small text-muted-foreground">{course.description}</p>
+          )}
+
+          {course && (
+            <div className="flex flex-wrap gap-4 text-caption text-muted-foreground border-t border-border pt-3">
+              <span className="flex items-center gap-1 font-medium text-foreground">
+                <DollarSign className="size-4 text-primary" />
+                السعر: {course.price_cents > 0 ? `${course.price_cents / 100} ج.م` : "مجاني"}
+              </span>
+              {course.trailer_youtube_id && (
+                <span className="flex items-center gap-1 text-primary">
+                  <Film className="size-4" />
+                  فيديو البرومو مضاف
+                </span>
+              )}
+            </div>
+          )}
+
+          {course && (
+            <EditCourseDialog
+              course={course}
+              open={editingCourse}
+              onOpenChange={setEditingCourse}
+            />
+          )}
         </div>
       )}
 

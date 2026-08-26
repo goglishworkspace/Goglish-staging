@@ -69,47 +69,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return apiError("بيانات غير صالحة", zodErrorsToApiErrors(parsed.error), 422);
   }
 
-  // trailer_youtube_id and price_cents are commercial/marketing attributes
-  // meant to be updatable even after the course is published, unlike
-  // title/description which RLS locks to draft/rejected rows for the owner -
-  // so they go through dedicated RPCs instead of the plain RLS-gated update
-  // below.
-  const { trailer_youtube_id, price_cents, ...rest } = parsed.data;
-  let data: Record<string, unknown> | null = null;
-
-  if (trailer_youtube_id !== undefined) {
-    const { data: trailerData, error: trailerError } = await supabase.rpc("update_course_trailer", {
-      p_course_id: id,
-      p_trailer_youtube_id: trailer_youtube_id,
+  let isAdmin = false;
+  try {
+    const { data: roleCheck } = await supabase.rpc("user_has_any_role", {
+      p_roles: ["admin", "super_admin", "moderator", "content_manager"],
     });
-    if (trailerError) return apiError("تعذر تحديث الكورس", null, 403);
-    data = trailerData;
+    isAdmin = !!roleCheck;
+  } catch {
+    isAdmin = false;
   }
 
-  if (price_cents !== undefined) {
-    const { data: priceData, error: priceError } = await supabase.rpc("update_course_price", {
-      p_course_id: id,
-      p_price_cents: price_cents,
-    });
-    if (priceError) return apiError("تعذر تحديث سعر الكورس", null, 403);
-    data = priceData;
+  const updatePayload: Record<string, unknown> = {
+    ...parsed.data,
+    updated_at: new Date().toISOString(),
+  };
+
+  // If a teacher edits a course, update submitted_at so it surfaces in the admin queue
+  if (!isAdmin) {
+    updatePayload.submitted_at = new Date().toISOString();
   }
 
-  if (Object.keys(rest).length > 0) {
-    const { data: restData, error: restError } = await supabase
-      .from("courses")
-      .update(rest)
-      .eq("id", id)
-      .select()
-      .maybeSingle();
+  const { data: updated, error: updateError } = await supabase
+    .from("courses")
+    .update(updatePayload)
+    .eq("id", id)
+    .select()
+    .maybeSingle();
 
-    if (restError) return apiError("تعذر تحديث الكورس", null, 400);
-    if (!restData) return apiError("الكورس غير موجود أو مش مسموح تعدّله (لازم يكون Draft/Rejected)", null, 403);
-    data = restData;
-  }
-
-  if (!data) return apiError("مفيش بيانات للتحديث", null, 400);
-  return apiSuccess(data, "تم تحديث الكورس");
+  if (updateError) return apiError("تعذر تحديث الكورس", null, 400);
+  if (!updated) return apiError("الكورس غير موجود أو ليس لديك صلاحية تعديله", null, 403);
+  return apiSuccess(updated, isAdmin ? "تم تحديث الكورس" : "تم حفظ التعديلات وإرسالها للمراجعة");
 }
 
 // Soft delete only (Section 23) - actual purge is a separate admin/ops concern.
