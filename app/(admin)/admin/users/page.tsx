@@ -12,6 +12,19 @@ import { UserManageDialog } from "@/components/admin/UserManageDialog";
 import { useAdminUsers, type AdminUserSummary } from "@/lib/api/queries/admin-users";
 import { useProfile } from "@/lib/api/queries/profile";
 
+function formatDateTimeEn(dateStr: string | null | undefined): string {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  return d.toLocaleString("en-GB", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 export default function AdminUsersPage() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -72,8 +85,8 @@ export default function AdminUsersPage() {
       u.grade ?? "-",
       `"${u.roles.join(", ")}"`,
       u.deleted_at ? "محذوف" : u.banned ? "محظور" : "نشط",
-      u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString("ar-EG") : "-",
-      new Date(u.created_at).toLocaleDateString("ar-EG"),
+      u.last_sign_in_at ? formatDateTimeEn(u.last_sign_in_at) : "-",
+      formatDateTimeEn(u.created_at),
     ]);
 
     const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
@@ -198,14 +211,9 @@ export default function AdminUsersPage() {
                       ))}
                     </div>
                   </TableCell>
-                  <TableCell className="text-small text-muted-foreground">
+                  <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
                     {user.last_sign_in_at ? (
-                      new Date(user.last_sign_in_at).toLocaleDateString("ar-EG", {
-                        month: "numeric",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
+                      formatDateTimeEn(user.last_sign_in_at)
                     ) : (
                       <span className="text-muted-foreground/60">لم يسجل بعد</span>
                     )}

@@ -74,6 +74,19 @@ function toastHandlers(successMessage: string) {
   };
 }
 
+function formatDateTimeEn(dateStr: string | null | undefined): string {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  return d.toLocaleString("en-GB", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 function UserManageDialogInner({
   summaryUser,
   viewerIsSuperAdmin,
@@ -194,7 +207,7 @@ function UserManageDialogInner({
           {user.last_sign_in_at && (
             <>
               <span>•</span>
-              <span>آخر دخول: {new Date(user.last_sign_in_at).toLocaleDateString("ar-EG")}</span>
+              <span>آخر دخول: <span dir="ltr" className="font-medium text-foreground">{formatDateTimeEn(user.last_sign_in_at)}</span></span>
             </>
           )}
         </DialogDescription>
@@ -508,8 +521,8 @@ function UserManageDialogInner({
                         <TableCell dir="ltr" className="text-small text-muted-foreground">
                           {device.ip_address ?? "-"}
                         </TableCell>
-                        <TableCell className="text-small text-muted-foreground">
-                          {new Date(device.last_active_at).toLocaleString("ar-EG")}
+                        <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
+                          {formatDateTimeEn(device.last_active_at)}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -550,10 +563,10 @@ function UserManageDialogInner({
                   <TableBody>
                     {userDetail.login_history.map((log) => (
                       <TableRow key={log.id}>
-                        <TableCell className="text-small">
-                          {new Date(log.created_at).toLocaleString("ar-EG")}
+                        <TableCell dir="ltr" className="text-small text-start">
+                          {formatDateTimeEn(log.created_at)}
                         </TableCell>
-                        <TableCell dir="ltr" className="text-small text-muted-foreground">
+                        <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
                           {log.ip ?? "-"}
                         </TableCell>
                         <TableCell className="text-small text-muted-foreground truncate max-w-[200px]" title={log.user_agent ?? ""}>
@@ -621,8 +634,8 @@ function UserManageDialogInner({
                             {course.source === "admin_grant" ? "منح من الإدارة" : course.source === "purchase" ? "شراء مباشر" : course.source}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-small text-muted-foreground">
-                          {new Date(course.granted_at).toLocaleDateString("ar-EG")}
+                        <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
+                          {formatDateTimeEn(course.granted_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -672,7 +685,7 @@ export function UserManageDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
         {open && (
           <UserManageDialogInner
             key={user.id}
