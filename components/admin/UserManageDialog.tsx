@@ -214,15 +214,15 @@ function UserManageDialogInner({
       </DialogHeader>
 
       {/* Tab Buttons */}
-      <div className="flex border-b border-border gap-2 pb-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border gap-2 pb-3 pt-2">
         <button
           type="button"
           onClick={() => setActiveTab("profile")}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-small font-medium transition-colors",
+            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
             activeTab === "profile"
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+              : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
           )}
         >
           <User className="size-4" />
@@ -232,10 +232,10 @@ function UserManageDialogInner({
           type="button"
           onClick={() => setActiveTab("devices")}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-small font-medium transition-colors",
+            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
             activeTab === "devices"
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+              : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
           )}
         >
           <Smartphone className="size-4" />
@@ -245,10 +245,10 @@ function UserManageDialogInner({
           type="button"
           onClick={() => setActiveTab("courses")}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-small font-medium transition-colors",
+            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
             activeTab === "courses"
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+              : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
           )}
         >
           <BookOpen className="size-4" />
@@ -258,10 +258,10 @@ function UserManageDialogInner({
           type="button"
           onClick={() => setActiveTab("notes")}
           className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-small font-medium transition-colors",
+            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
             activeTab === "notes"
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+              : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
           )}
         >
           <FileText className="size-4" />
@@ -685,7 +685,7 @@ export function UserManageDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl lg:max-w-5xl w-full max-h-[90vh] overflow-y-auto">
         {open && (
           <UserManageDialogInner
             key={user.id}
