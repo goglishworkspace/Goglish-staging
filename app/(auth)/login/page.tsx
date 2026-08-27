@@ -19,6 +19,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { AuthCard } from "../_components/AuthCard";
 import { Field, SubmitButton } from "../_components/Field";
 
@@ -70,26 +71,37 @@ export default function LoginPage() {
       headline="رجعت تكمل الطريق"
       subtext="كل مرة تدخل بيها، خطوة جديدة في طريقك للثانوية العامة."
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <Field label="الإيميل" htmlFor="email" error={errors.email?.message}>
-          <Input id="email" type="email" aria-invalid={!!errors.email} {...register("email")} />
-        </Field>
+      <div className="flex flex-col gap-4">
+        <GoogleAuthButton mode="signin" />
 
-        <Field label="الباسورد" htmlFor="password" error={errors.password?.message}>
-          <PasswordInput id="password" aria-invalid={!!errors.password} {...register("password")} />
-        </Field>
-
-        <SubmitButton disabled={isSubmitting}>دخول</SubmitButton>
-
-        <div className="flex items-center justify-between text-small">
-          <Link href="/forgot-password" className="underline">
-            نسيت الباسورد؟
-          </Link>
-          <Link href="/register" className="font-semibold underline">
-            إنشاء حساب
-          </Link>
+        <div className="relative flex items-center justify-center my-1">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <span className="relative bg-card px-3 text-caption text-muted-foreground">أو بالبريد الإلكتروني</span>
         </div>
-      </form>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <Field label="الإيميل" htmlFor="email" error={errors.email?.message}>
+            <Input id="email" type="email" aria-invalid={!!errors.email} {...register("email")} />
+          </Field>
+
+          <Field label="الباسورد" htmlFor="password" error={errors.password?.message}>
+            <PasswordInput id="password" aria-invalid={!!errors.password} {...register("password")} />
+          </Field>
+
+          <SubmitButton disabled={isSubmitting}>دخول</SubmitButton>
+
+          <div className="flex items-center justify-between text-small">
+            <Link href="/forgot-password" className="underline">
+              نسيت الباسورد؟
+            </Link>
+            <Link href="/register" className="font-semibold underline">
+              إنشاء حساب
+            </Link>
+          </div>
+        </form>
+      </div>
 
       <Dialog open={!!oldestDevice} onOpenChange={(open) => !open && setOldestDevice(null)}>
         <DialogContent>

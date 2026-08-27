@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { AuthCard } from "../_components/AuthCard";
 import { Field, SubmitButton } from "../_components/Field";
 
@@ -102,14 +103,14 @@ function RegisterPageContent() {
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
+          role_type: values.role_type,
           first_name: values.first_name,
           last_name: values.last_name,
-          role_type: values.role_type,
+          phone: values.phone || undefined,
           national_id: values.role_type === "student" ? values.national_id : undefined,
           grade: values.role_type === "student" ? values.grade : undefined,
           child_national_id: values.role_type === "parent" ? values.child_national_id : undefined,
           child_phone: values.role_type === "parent" ? values.child_phone : undefined,
-          phone: values.phone || undefined,
         },
       },
     });
@@ -124,9 +125,8 @@ function RegisterPageContent() {
       return;
     }
 
-    if (data.user?.id) {
+    if (data.session) {
       await postJson("/api/auth/register/sync-metadata", {
-        user_id: data.user.id,
         email: values.email,
         role_type: values.role_type,
         first_name: values.first_name,
@@ -149,7 +149,16 @@ function RegisterPageContent() {
       subtext="سجّل دلوقتي في ثوانٍ وابدأ المذاكرة فوراً على Goglish."
     >
       {step === 1 ? (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
+          <GoogleAuthButton mode="signup" />
+
+          <div className="relative flex items-center justify-center my-1">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <span className="relative bg-card px-3 text-caption text-muted-foreground">أو بالبريد الإلكتروني</span>
+          </div>
+
           <p className="text-center font-medium text-foreground">اختر نوع الحساب:</p>
           <div className="flex gap-3">
             <RoleCard
