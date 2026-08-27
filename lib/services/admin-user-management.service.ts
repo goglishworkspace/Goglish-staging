@@ -113,6 +113,24 @@ export const PRIVILEGED_ROLES = ["admin", "super_admin"];
  * used everywhere else in the codebase for sibling-FK-shaped joins. `q`
  * filters client-side in-process since GoTrue's listUsers has no name/email
  * substring search and the platform's user count is small (Free tier scale). */
+async function fetchProfilesSafely(ids: string[]) {
+  const admin = createAdminClient();
+  try {
+    return await selectInChunks(ids, (batch) =>
+      admin.from("profiles").select("id, user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned").in("id", batch),
+    );
+  } catch {
+    const fallbackRows = await selectInChunks(ids, (batch) =>
+      admin.from("profiles").select("id, first_name, last_name, phone, grade, deleted_at, comment_banned").in("id", batch),
+    );
+    return fallbackRows.map((r) => ({
+      ...r,
+      user_code: null,
+      admin_notes: null,
+    }));
+  }
+}
+
 export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
   const admin = createAdminClient();
   const { data: authList, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -120,11 +138,9 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
 
   const ids = authList.users.map((u) => u.id);
   const [profiles, roleRows, teacherRows] = await Promise.all([
-    selectInChunks(ids, (batch) =>
-      admin.from("profiles").select("id, user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned").in("id", batch),
-    ),
-    selectInChunks(ids, (batch) => admin.from("role_user").select("user_id, roles(name)").in("user_id", batch)),
-    selectInChunks(ids, (batch) => admin.from("teachers").select("user_id, status").in("user_id", batch)),
+    fetchProfilesSafely(ids),
+    selectInChunks(ids, (batch) => admin.from("role_user").select("user_id, roles(name)").in("user_id", batch)).catch(() => []),
+    selectInChunks(ids, (batch) => admin.from("teachers").select("user_id, status").in("user_id", batch)).catch(() => []),
   ]);
 
   const profileById = new Map(profiles.map((p) => [p.id, p]));
@@ -142,13 +158,13 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
     const profile = profileById.get(u.id);
     return {
       id: u.id,
-      user_code: profile?.user_code ?? null,
+      user_code: (profile as { user_code?: number | null })?.user_code ?? null,
       email: u.email ?? "",
       first_name: profile?.first_name ?? null,
       last_name: profile?.last_name ?? null,
       phone: profile?.phone ?? null,
       grade: profile?.grade ?? null,
-      admin_notes: profile?.admin_notes ?? null,
+      admin_notes: (profile as { admin_notes?: string | null })?.admin_notes ?? null,
       deleted_at: profile?.deleted_at ?? null,
       banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
       comment_banned: profile?.comment_banned ?? false,
@@ -181,13 +197,35 @@ export async function getUserDetail(targetUserId: string): Promise<AdminUserDeta
   if (error || !userData.user) return null;
   const u = userData.user;
 
-  const [{ data: profile }, { data: roleRows }, { data: teacher }, { data: devices }, { data: auditLogs }, { data: entitlements }] =
+  let profile: {
+    user_code?: number | null;
+    first_name: string | null;
+    last_name: string | null;
+    phone: string | null;
+    grade: string | null;
+    admin_notes?: string | null;
+    deleted_at: string | null;
+    comment_banned: boolean;
+  } | null = null;
+
+  try {
+    const { data } = await admin
+      .from("profiles")
+      .select("user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned")
+      .eq("id", targetUserId)
+      .maybeSingle();
+    profile = data;
+  } catch {
+    const { data } = await admin
+      .from("profiles")
+      .select("first_name, last_name, phone, grade, deleted_at, comment_banned")
+      .eq("id", targetUserId)
+      .maybeSingle();
+    profile = data ? { ...data, user_code: null, admin_notes: null } : null;
+  }
+
+  const [{ data: roleRows }, { data: teacher }, { data: devices }, { data: auditLogs }, { data: entitlements }] =
     await Promise.all([
-      admin
-        .from("profiles")
-        .select("user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned")
-        .eq("id", targetUserId)
-        .maybeSingle(),
       admin.from("role_user").select("roles(name)").eq("user_id", targetUserId),
       admin.from("teachers").select("status").eq("user_id", targetUserId).maybeSingle(),
       admin
