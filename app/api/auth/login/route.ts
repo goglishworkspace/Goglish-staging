@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
       action: "user.login",
       targetTable: "auth.users",
       targetId: data.user.id,
+      metadata: { ip, user_agent: userAgent },
     });
 
     return apiSuccess({ status: "ok" as const, user_id: data.user.id }, "تم تسجيل الدخول بنجاح");

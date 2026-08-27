@@ -55,11 +55,13 @@ export class UserNotDeletedError extends Error {}
 
 export type AdminUserSummary = {
   id: string;
+  user_code: number | null;
   email: string;
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
   grade: string | null;
+  admin_notes: string | null;
   deleted_at: string | null;
   banned: boolean;
   comment_banned: boolean;
@@ -67,6 +69,37 @@ export type AdminUserSummary = {
   is_teacher: boolean;
   teacher_status: string | null;
   created_at: string;
+  last_sign_in_at: string | null;
+};
+
+export type AdminUserDevice = {
+  id: string;
+  device_fingerprint: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  is_active: boolean;
+  last_active_at: string;
+  created_at: string;
+};
+
+export type AdminUserLoginEvent = {
+  id: string;
+  created_at: string;
+  ip: string | null;
+  user_agent: string | null;
+};
+
+export type AdminUserCourse = {
+  course_id: string;
+  title: string;
+  source: string;
+  granted_at: string;
+};
+
+export type AdminUserDetail = AdminUserSummary & {
+  devices: AdminUserDevice[];
+  login_history: AdminUserLoginEvent[];
+  courses: AdminUserCourse[];
 };
 
 /** Only a super_admin can grant/revoke these two roles - a plain admin can
@@ -88,7 +121,7 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
   const ids = authList.users.map((u) => u.id);
   const [profiles, roleRows, teacherRows] = await Promise.all([
     selectInChunks(ids, (batch) =>
-      admin.from("profiles").select("id, first_name, last_name, phone, grade, deleted_at, comment_banned").in("id", batch),
+      admin.from("profiles").select("id, user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned").in("id", batch),
     ),
     selectInChunks(ids, (batch) => admin.from("role_user").select("user_id, roles(name)").in("user_id", batch)),
     selectInChunks(ids, (batch) => admin.from("teachers").select("user_id, status").in("user_id", batch)),
@@ -109,11 +142,13 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
     const profile = profileById.get(u.id);
     return {
       id: u.id,
+      user_code: profile?.user_code ?? null,
       email: u.email ?? "",
       first_name: profile?.first_name ?? null,
       last_name: profile?.last_name ?? null,
       phone: profile?.phone ?? null,
       grade: profile?.grade ?? null,
+      admin_notes: profile?.admin_notes ?? null,
       deleted_at: profile?.deleted_at ?? null,
       banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
       comment_banned: profile?.comment_banned ?? false,
@@ -121,42 +156,99 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
       is_teacher: teacherByUser.has(u.id),
       teacher_status: teacherByUser.get(u.id) ?? null,
       created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at ?? null,
     };
   });
 
   if (query) {
     const q = query.trim().toLowerCase();
     result = result.filter(
-      (u) => u.email.toLowerCase().includes(q) || `${u.first_name ?? ""} ${u.last_name ?? ""}`.toLowerCase().includes(q),
+      (u) =>
+        u.email.toLowerCase().includes(q) ||
+        (u.phone && u.phone.includes(q)) ||
+        (u.user_code && `gog-${u.user_code}`.includes(q)) ||
+        (u.user_code && String(u.user_code).includes(q)) ||
+        `${u.first_name ?? ""} ${u.last_name ?? ""}`.toLowerCase().includes(q),
     );
   }
 
   return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
-export async function getUserDetail(targetUserId: string): Promise<AdminUserSummary | null> {
+export async function getUserDetail(targetUserId: string): Promise<AdminUserDetail | null> {
   const admin = createAdminClient();
   const { data: userData, error } = await admin.auth.admin.getUserById(targetUserId);
   if (error || !userData.user) return null;
   const u = userData.user;
 
-  const [{ data: profile }, { data: roleRows }, { data: teacher }] = await Promise.all([
-    admin.from("profiles").select("first_name, last_name, phone, grade, deleted_at, comment_banned").eq("id", targetUserId).maybeSingle(),
-    admin.from("role_user").select("roles(name)").eq("user_id", targetUserId),
-    admin.from("teachers").select("status").eq("user_id", targetUserId).maybeSingle(),
-  ]);
+  const [{ data: profile }, { data: roleRows }, { data: teacher }, { data: devices }, { data: auditLogs }, { data: entitlements }] =
+    await Promise.all([
+      admin
+        .from("profiles")
+        .select("user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned")
+        .eq("id", targetUserId)
+        .maybeSingle(),
+      admin.from("role_user").select("roles(name)").eq("user_id", targetUserId),
+      admin.from("teachers").select("status").eq("user_id", targetUserId).maybeSingle(),
+      admin
+        .from("devices")
+        .select("id, device_fingerprint, user_agent, ip_address, is_active, last_active_at, created_at")
+        .eq("user_id", targetUserId)
+        .order("last_active_at", { ascending: false }),
+      admin
+        .from("audit_logs")
+        .select("id, created_at, metadata")
+        .eq("actor_user_id", targetUserId)
+        .eq("action", "user.login")
+        .order("created_at", { ascending: false })
+        .limit(25),
+      admin
+        .from("course_entitlements")
+        .select("course_id, source, granted_at, courses(title)")
+        .eq("user_id", targetUserId)
+        .is("revoked_at", null),
+    ]);
 
   const roles = (roleRows ?? [])
     .map((row) => (row.roles as unknown as { name: string } | null)?.name)
     .filter((name): name is string => !!name);
 
+  const deviceList: AdminUserDevice[] = (devices ?? []).map((d) => ({
+    id: d.id,
+    device_fingerprint: d.device_fingerprint,
+    user_agent: d.user_agent,
+    ip_address: d.ip_address ? String(d.ip_address) : null,
+    is_active: d.is_active,
+    last_active_at: d.last_active_at,
+    created_at: d.created_at,
+  }));
+
+  const loginEvents: AdminUserLoginEvent[] = (auditLogs ?? []).map((log) => {
+    const meta = (log.metadata as { ip?: string; user_agent?: string } | null) ?? {};
+    return {
+      id: log.id,
+      created_at: log.created_at,
+      ip: meta.ip ?? null,
+      user_agent: meta.user_agent ?? null,
+    };
+  });
+
+  const coursesList: AdminUserCourse[] = (entitlements ?? []).map((ent) => ({
+    course_id: ent.course_id,
+    title: (ent.courses as unknown as { title: string } | null)?.title ?? "كورس",
+    source: ent.source,
+    granted_at: ent.granted_at,
+  }));
+
   return {
     id: u.id,
+    user_code: profile?.user_code ?? null,
     email: u.email ?? "",
     first_name: profile?.first_name ?? null,
     last_name: profile?.last_name ?? null,
     phone: profile?.phone ?? null,
     grade: profile?.grade ?? null,
+    admin_notes: profile?.admin_notes ?? null,
     deleted_at: profile?.deleted_at ?? null,
     banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
     comment_banned: profile?.comment_banned ?? false,
@@ -164,6 +256,10 @@ export async function getUserDetail(targetUserId: string): Promise<AdminUserSumm
     is_teacher: !!teacher,
     teacher_status: teacher?.status ?? null,
     created_at: u.created_at,
+    last_sign_in_at: u.last_sign_in_at ?? null,
+    devices: deviceList,
+    login_history: loginEvents,
+    courses: coursesList,
   };
 }
 
@@ -456,3 +552,99 @@ export async function repairIncompleteSelfRegistrations(actorUserId: string): Pr
 
   return { candidates: candidates.length, repaired, failed };
 }
+
+export async function adminUpdateUserProfile(
+  actorUserId: string,
+  targetUserId: string,
+  input: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    grade?: string | null;
+    admin_notes?: string;
+    password?: string;
+  },
+): Promise<void> {
+  const admin = createAdminClient();
+
+  const profileUpdate: Record<string, unknown> = {};
+  if (input.first_name !== undefined) profileUpdate.first_name = input.first_name;
+  if (input.last_name !== undefined) profileUpdate.last_name = input.last_name;
+  if (input.phone !== undefined) profileUpdate.phone = input.phone || null;
+  if (input.grade !== undefined) profileUpdate.grade = input.grade || null;
+  if (input.admin_notes !== undefined) profileUpdate.admin_notes = input.admin_notes;
+
+  if (Object.keys(profileUpdate).length > 0) {
+    const { error: profileErr } = await admin
+      .from("profiles")
+      .update(profileUpdate)
+      .eq("id", targetUserId);
+    if (profileErr) throw profileErr;
+  }
+
+  if (input.password && input.password.trim().length >= 6) {
+    const { error: authErr } = await admin.auth.admin.updateUserById(targetUserId, {
+      password: input.password.trim(),
+    });
+    if (authErr) throw authErr;
+  }
+
+  await logAudit({
+    actorUserId,
+    action: "user.admin_update",
+    targetTable: "profiles",
+    targetId: targetUserId,
+    metadata: { updated_fields: Object.keys(input) },
+  });
+}
+
+export async function adminKickDevice(
+  actorUserId: string,
+  targetUserId: string,
+  deviceId: string,
+): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("devices")
+    .delete()
+    .eq("id", deviceId)
+    .eq("user_id", targetUserId);
+  if (error) throw error;
+
+  await logAudit({
+    actorUserId,
+    action: "device.kicked",
+    targetTable: "devices",
+    targetId: deviceId,
+    metadata: { target_user_id: targetUserId },
+  });
+}
+
+export async function adminGrantCourseAccess(
+  actorUserId: string,
+  targetUserId: string,
+  courseId: string,
+): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("course_entitlements")
+    .upsert(
+      {
+        user_id: targetUserId,
+        course_id: courseId,
+        source: "admin_grant",
+      },
+      { onConflict: "user_id,course_id" },
+    );
+
+  if (error) throw error;
+
+  await logAudit({
+    actorUserId,
+    action: "course.manual_grant",
+    targetTable: "course_entitlements",
+    targetId: courseId,
+    metadata: { target_user_id: targetUserId },
+  });
+}
+

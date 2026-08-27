@@ -22,6 +22,27 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return apiSuccess(detail, "تم جلب بيانات المستخدم");
 }
 
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return apiError("لازم تسجل دخول الأول", null, 401);
+  if (!(await userHasAnyRole(supabase, MANAGE_ROLES))) {
+    return apiError("مش مسموح لك بالإجراء ده", null, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  if (!body) return apiError("جسم الطلب غير صالح", null, 400);
+
+  const { adminUpdateUserProfile } = await import("@/lib/services/admin-user-management.service");
+  await adminUpdateUserProfile(user.id, id, body);
+
+  const updated = await getUserDetail(id);
+  return apiSuccess(updated, "تم تحديث بيانات المستخدم بنجاح");
+}
+
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
