@@ -149,3 +149,30 @@ export const verifyPhoneConfirmSchema = z.object({
 });
 
 export type VerifyPhoneConfirmInput = z.infer<typeof verifyPhoneConfirmSchema>;
+
+export const completeProfileSchema = z
+  .object({
+    role_type: roleTypeSchema,
+    first_name: z.string().trim().min(2, "الاسم الأول لازم يكون حرفين على الأقل"),
+    last_name: z.string().trim().min(2, "اسم العائلة لازم يكون حرفين على الأقل"),
+    phone: z
+      .string()
+      .trim()
+      .regex(/^(\+20|0)?1[0125]\d{8}$/, "يرجى إدخال رقم هاتف مصري صحيح (مثال: 01012345678)"),
+    grade: gradeSchema.optional(),
+    child_phone: z.string().trim().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.role_type === "student") {
+        return Boolean(data.grade);
+      }
+      return true;
+    },
+    {
+      message: "يرجى اختيار الصف الدراسي",
+      path: ["grade"],
+    },
+  );
+
+export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;

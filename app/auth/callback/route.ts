@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
   const metadata = (user.user_metadata ?? {}) as SelfRegistrationMetadata;
 
-  // Handle email/password self-registration completion
+  // Handle standard email/password self-registration completion
   if (metadata.role_type === "student" || metadata.role_type === "parent") {
     try {
       const result = await completeSelfRegistrationIfNeeded(user.id, metadata);
@@ -66,34 +66,13 @@ export async function GET(request: NextRequest) {
   // Handle OAuth (Google) registration/login
   try {
     const admin = createAdminClient();
-    const googleName = user.user_metadata?.full_name || user.user_metadata?.name;
-    const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture;
 
     const { data: profile } = await admin
       .from("profiles")
-      .select("first_name, last_name, grade, avatar_url")
+      .select("id, first_name, last_name, phone, grade, role_type, avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (!profile?.first_name && googleName) {
-      const parts = String(googleName).trim().split(" ");
-      const firstName = parts[0] || "";
-      const lastName = parts.slice(1).join(" ") || "";
-      await admin
-        .from("profiles")
-        .upsert(
-          {
-            id: user.id,
-            first_name: firstName,
-            last_name: lastName,
-            ...(googleAvatar ? { avatar_url: googleAvatar } : {}),
-            role_type: "student",
-          },
-          { onConflict: "id" },
-        );
-    }
-
-    // Check roles
     const { data: existingRoles } = await admin
       .from("role_user")
       .select("roles(name)")
@@ -103,39 +82,34 @@ export async function GET(request: NextRequest) {
       .map((r) => (r.roles as unknown as { name: string } | null)?.name)
       .filter(Boolean);
 
-    if (roles.length === 0) {
-      const { data: studentRole } = await admin
-        .from("roles")
-        .select("id")
-        .eq("name", "student")
-        .maybeSingle();
-      if (studentRole) {
-        await admin
-          .from("role_user")
-          .insert({
-            user_id: user.id,
-            role_id: studentRole.id,
-          });
-      }
-      roles.push("student");
-    }
-
+    // 1. Staff and existing privileged roles always go directly to their dashboards
     if (roles.includes("super_admin") || roles.includes("admin")) {
       return NextResponse.redirect(new URL("/admin/dashboard", request.url));
     }
     if (roles.includes("teacher")) {
       return NextResponse.redirect(new URL("/teacher/dashboard", request.url));
     }
-    if (roles.includes("parent")) {
+
+    // 2. Existing parent with phone goes directly to parent dashboard
+    if (roles.includes("parent") && profile?.phone) {
       return NextResponse.redirect(new URL("/parent/dashboard", request.url));
     }
 
-    if (!profile?.grade) {
-      return NextResponse.redirect(new URL("/student/choose-grade", request.url));
+    // 3. Existing student with complete details goes directly to student dashboard
+    if (roles.includes("student") && profile?.first_name && profile?.phone && profile?.grade) {
+      return NextResponse.redirect(new URL("/student/dashboard", request.url));
     }
-    return NextResponse.redirect(new URL("/student/dashboard", request.url));
+
+    // 4. If avatar is available in Google metadata and not set in profile, save it
+    const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+    if (googleAvatar && !profile?.avatar_url) {
+      await admin.from("profiles").update({ avatar_url: googleAvatar }).eq("id", user.id);
+    }
+
+    // 5. New or incomplete user -> Send to onboarding step (choose role -> enter details)
+    return NextResponse.redirect(new URL("/complete-profile", request.url));
   } catch (err) {
     console.error("OAuth callback sync error", err);
-    return NextResponse.redirect(new URL("/student/dashboard", request.url));
+    return NextResponse.redirect(new URL("/complete-profile", request.url));
   }
 }
