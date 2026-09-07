@@ -5,6 +5,12 @@ import { completeProfileSchema } from "@/lib/validation/auth.schemas";
 import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { linkChildToParent } from "@/lib/services/parent-portal.service";
+import { getClientIp } from "@/lib/services/rate-limit.service";
+import {
+  getOrCreateDeviceId,
+  computeDeviceFingerprint,
+  enforceDeviceLimit,
+} from "@/lib/services/device.service";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -76,6 +82,17 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("Failed to auto-link child for parent:", err);
     }
+  }
+
+  // 4. Register active device
+  try {
+    const ip = getClientIp(request);
+    const userAgent = request.headers.get("user-agent");
+    const deviceId = await getOrCreateDeviceId();
+    const fingerprint = await computeDeviceFingerprint(deviceId, userAgent);
+    await enforceDeviceLimit(user.id, fingerprint, userAgent, ip, true);
+  } catch (err) {
+    console.error("Device registration error on complete-profile", err);
   }
 
   const destination = role_type === "student" ? "/student/dashboard" : "/parent/dashboard";

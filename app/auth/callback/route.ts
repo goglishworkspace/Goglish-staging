@@ -5,6 +5,12 @@ import {
   completeSelfRegistrationIfNeeded,
   type SelfRegistrationMetadata,
 } from "@/lib/services/self-registration.service";
+import { getClientIp } from "@/lib/services/rate-limit.service";
+import {
+  getOrCreateDeviceId,
+  computeDeviceFingerprint,
+  enforceDeviceLimit,
+} from "@/lib/services/device.service";
 
 /** `next` is an attacker-visible/modifiable query param - only ever follow
  * it if it's a same-origin relative path, never an absolute/external URL. */
@@ -44,6 +50,17 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Register device for OAuth session
+  try {
+    const ip = getClientIp(request);
+    const userAgent = request.headers.get("user-agent");
+    const deviceId = await getOrCreateDeviceId();
+    const fingerprint = await computeDeviceFingerprint(deviceId, userAgent);
+    await enforceDeviceLimit(user.id, fingerprint, userAgent, ip, true);
+  } catch (err) {
+    console.error("Device registration error on auth callback", err);
   }
 
   const metadata = (user.user_metadata ?? {}) as SelfRegistrationMetadata;
