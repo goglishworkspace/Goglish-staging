@@ -36,27 +36,51 @@ export async function POST(request: NextRequest) {
   const { role_type, first_name, last_name, phone, grade, child_phone } = parsed.data;
   const admin = createAdminClient();
 
-  // 1. Update profiles table
-  const { error: profileError } = await admin
+  // 1. Update profiles table - try direct update first as the profile stub already exists
+  const { error: updateError } = await admin
     .from("profiles")
-    .upsert(
-      {
-        id: user.id,
-        first_name,
-        last_name,
-        phone,
-        role_type,
-        grade: role_type === "student" ? (grade ?? null) : null,
-      },
-      { onConflict: "id" },
-    );
+    .update({
+      first_name,
+      last_name,
+      phone,
+      role_type,
+      grade: role_type === "student" ? (grade ?? null) : null,
+      self_registration_completed_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
 
-  if (profileError) {
-    console.error("Failed to complete profile:", profileError);
-    return apiError("تعذر حفظ البيانات، يرجى المحاولة مرة أخرى", null, 500);
+  if (updateError) {
+    console.error("Profiles update failed, trying complete_self_registration RPC:", updateError);
+    // Fallback: use database RPC function
+    const { error: rpcError } = await admin.rpc("complete_self_registration", {
+      p_user_id: user.id,
+      p_role_type: role_type,
+      p_first_name: first_name,
+      p_last_name: last_name,
+      p_phone: phone,
+      p_grade: role_type === "student" ? (grade ?? null) : null,
+      p_child_phone: role_type === "parent" ? (child_phone || null) : null,
+    });
+
+    if (rpcError) {
+      console.error("complete_self_registration RPC error:", rpcError);
+      return apiError(`تعذر حفظ البيانات: ${updateError.message || rpcError.message}`, null, 500);
+    }
   }
 
-  // 2. Assign role in role_user
+  // 2. Sync user_metadata in Supabase Auth so session reflects full profile
+  await admin.auth.admin.updateUserById(user.id, {
+    user_metadata: {
+      ...user.user_metadata,
+      first_name,
+      last_name,
+      phone,
+      role_type,
+      grade: role_type === "student" ? grade : undefined,
+    },
+  }).catch((err) => console.error("Failed to sync auth user_metadata:", err));
+
+  // 3. Assign role in role_user
   const { data: roleRow } = await admin
     .from("roles")
     .select("id")
@@ -75,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
   }
 
-  // 3. Link child if parent provided a child phone
+  // 4. Link child if parent provided a child phone
   if (role_type === "parent" && child_phone) {
     try {
       await linkChildToParent(user.id, child_phone);
@@ -84,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 4. Register active device
+  // 5. Register active device
   try {
     const ip = getClientIp(request);
     const userAgent = request.headers.get("user-agent");
