@@ -4,6 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type CourseProgress = {
   course_id: string;
   course_title: string;
+  course_slug?: string | null;
+  cover_image_url?: string | null;
+  description?: string | null;
   total_lessons: number;
   completed_lessons: number;
   completion_percent: number;
@@ -14,7 +17,12 @@ async function computeCourseProgress(
   supabase: SupabaseClient,
   studentId: string,
   courseId: string,
-  courseTitle: string,
+  courseInfo: {
+    title: string;
+    slug?: string | null;
+    cover_image_url?: string | null;
+    description?: string | null;
+  },
 ): Promise<CourseProgress> {
   const { data: modules } = await supabase.from("modules").select("id").eq("course_id", courseId);
   const moduleIds = (modules ?? []).map((m) => m.id as string);
@@ -45,7 +53,10 @@ async function computeCourseProgress(
 
   return {
     course_id: courseId,
-    course_title: courseTitle,
+    course_title: courseInfo.title,
+    course_slug: courseInfo.slug ?? null,
+    cover_image_url: courseInfo.cover_image_url ?? null,
+    description: courseInfo.description ?? null,
     total_lessons: totalLessons,
     completed_lessons: completedLessons,
     completion_percent: totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0,
@@ -62,15 +73,25 @@ export async function getCourseProgressForStudent(
 ): Promise<CourseProgress[]> {
   const { data: entitlements } = await supabase
     .from("course_entitlements")
-    .select("course_id, courses(title)")
+    .select("course_id, courses(title, slug, cover_image_url, description)")
     .eq("user_id", studentId)
     .is("revoked_at", null);
 
   const results: CourseProgress[] = [];
   for (const entitlement of entitlements ?? []) {
-    const course = entitlement.courses as unknown as { title: string } | null;
+    const course = entitlement.courses as unknown as {
+      title: string;
+      slug?: string | null;
+      cover_image_url?: string | null;
+      description?: string | null;
+    } | null;
     results.push(
-      await computeCourseProgress(supabase, studentId, entitlement.course_id as string, course?.title ?? ""),
+      await computeCourseProgress(supabase, studentId, entitlement.course_id as string, {
+        title: course?.title ?? "",
+        slug: course?.slug ?? null,
+        cover_image_url: course?.cover_image_url ?? null,
+        description: course?.description ?? null,
+      }),
     );
   }
   return results;
@@ -83,7 +104,12 @@ export async function hasCompletedCourse(
   userId: string,
   courseId: string,
 ): Promise<boolean> {
-  const { data: course } = await supabase.from("courses").select("title").eq("id", courseId).maybeSingle();
-  const progress = await computeCourseProgress(supabase, userId, courseId, course?.title ?? "");
+  const { data: course } = await supabase.from("courses").select("title, slug, cover_image_url, description").eq("id", courseId).maybeSingle();
+  const progress = await computeCourseProgress(supabase, userId, courseId, {
+    title: course?.title ?? "",
+    slug: course?.slug ?? null,
+    cover_image_url: course?.cover_image_url ?? null,
+    description: course?.description ?? null,
+  });
   return progress.total_lessons > 0 && progress.completed_lessons === progress.total_lessons;
 }
