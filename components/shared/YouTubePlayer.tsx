@@ -112,6 +112,7 @@ export function YouTubePlayer({
   videoId,
   title,
   onTimeUpdate,
+  seekTarget,
 }: {
   videoId: string;
   title: string;
@@ -119,6 +120,8 @@ export function YouTubePlayer({
    * seek/skip) - lets a sibling section (lesson notes) capture "where in the
    * video is this note about" without its own player reference. */
   onTimeUpdate?: (seconds: number) => void;
+  /** Direct seek target requested from outside (e.g. clicking on a note timestamp). */
+  seekTarget?: number | null;
 }) {
   // Two separate refs on purpose: the YouTube IFrame API replaces its mount
   // element in the DOM with an <iframe> (containerRef.current becomes a
@@ -144,6 +147,15 @@ export function YouTubePlayer({
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
   }, [onTimeUpdate]);
+
+  // Handle external seek targets (e.g. jumping from smart note timestamps)
+  useEffect(() => {
+    if (seekTarget !== undefined && seekTarget !== null && playerRef.current && ready) {
+      playerRef.current.seekTo(seekTarget, true);
+      setCurrentTime(seekTarget);
+      onTimeUpdateRef.current?.(seekTarget);
+    }
+  }, [seekTarget, ready]);
 
   // Whether to hide the control bar until :hover, checked at runtime instead
   // of via a Tailwind pointer-fine:/CSS media-query variant - combining

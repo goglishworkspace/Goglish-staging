@@ -8,7 +8,7 @@ import { YouTubePlayer } from "@/components/shared/YouTubePlayer";
 import type { LessonPlaybackResult } from "@/lib/services/lesson-playback.service";
 
 export function LessonPlayer({ playback }: { playback: LessonPlaybackResult }) {
-  const { setCurrentTime } = useVideoTime();
+  const { setCurrentTime, seekTarget } = useVideoTime();
 
   if (playback.kind === "login_required") {
     return (
@@ -40,7 +40,12 @@ export function LessonPlayer({ playback }: { playback: LessonPlaybackResult }) {
   if (playback.kind === "youtube") {
     return (
       <VideoDeterrents>
-        <YouTubePlayer videoId={playback.videoId} title="فيديو الدرس" onTimeUpdate={setCurrentTime} />
+        <YouTubePlayer
+          videoId={playback.videoId}
+          title="فيديو الدرس"
+          onTimeUpdate={setCurrentTime}
+          seekTarget={seekTarget}
+        />
       </VideoDeterrents>
     );
   }
@@ -48,7 +53,12 @@ export function LessonPlayer({ playback }: { playback: LessonPlaybackResult }) {
   return (
     <VideoDeterrents>
       <div className="relative w-full">
-        <YouTubePlayer videoId={playback.videoId} title="فيديو الدرس" onTimeUpdate={setCurrentTime} />
+        <YouTubePlayer
+          videoId={playback.videoId}
+          title="فيديو الدرس"
+          onTimeUpdate={setCurrentTime}
+          seekTarget={seekTarget}
+        />
         <WatermarkOverlay watermark={playback.watermark} />
       </div>
     </VideoDeterrents>

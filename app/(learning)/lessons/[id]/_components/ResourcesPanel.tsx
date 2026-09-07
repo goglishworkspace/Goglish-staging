@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download } from "lucide-react";
+import { FileText, FolderOpen, ArrowDownToLine } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,26 +24,61 @@ export function ResourcesPanel({ lessonId }: { lessonId: string }) {
     });
   };
 
-  if (isLoading) return <Skeleton className="h-16 w-full" />;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2.5">
+        <Skeleton className="h-16 w-full rounded-2xl" />
+        <Skeleton className="h-16 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
   if (!resources?.length) {
-    return <p className="text-small text-muted-foreground">مفيش ملفات مرفوعة على الدرس ده.</p>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-card/40 p-8 text-center backdrop-blur-sm">
+        <div className="flex size-12 items-center justify-center rounded-2xl border border-border/60 bg-muted/40 text-muted-foreground">
+          <FolderOpen className="size-6" />
+        </div>
+        <div className="flex flex-col gap-1 max-w-sm">
+          <p className="text-xs font-bold text-foreground">لا توجد ملفات أو ملخصات مرفوعة لهذا الدرس</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            سيقوم المعلم برفع المذكرات أو نماذج الأسئلة الخاصة بهذا الدرس هنا فور توفرها.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-3">
       {resources.map((r) => (
-        <li key={r.id} className="flex items-center gap-2 rounded-lg border border-border p-3">
-          <FileText className="size-4 shrink-0 text-primary" />
-          <span className="min-w-0 flex-1 truncate text-small">{r.title}</span>
-          <span className="shrink-0 text-caption text-muted-foreground">{formatFileSize(r.file_size_bytes)}</span>
+        <li
+          key={r.id}
+          className="group flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/80 p-4 backdrop-blur-md shadow-sm transition-all hover:border-primary/50 hover:shadow-md"
+        >
+          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:scale-105">
+              <FileText className="size-5" />
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="truncate text-xs sm:text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                {r.title}
+              </span>
+              <span className="text-[11px] text-muted-foreground font-medium">
+                الحجم: {formatFileSize(r.file_size_bytes)}
+              </span>
+            </div>
+          </div>
+
           <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="تحميل الملف"
+            size="sm"
+            variant="outline"
+            className="flex items-center gap-1.5 rounded-xl border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-all shrink-0"
             disabled={getSignedUrl.isPending}
             onClick={() => onDownload(r.id)}
           >
-            <Download className="size-3.5" />
+            <ArrowDownToLine className="size-3.5" />
+            <span>تحميل</span>
           </Button>
         </li>
       ))}
