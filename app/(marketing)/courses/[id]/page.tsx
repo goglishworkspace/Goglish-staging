@@ -2,11 +2,25 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Star, PlayCircle, Heart } from "lucide-react";
+import {
+  Star,
+  PlayCircle,
+  Heart,
+  CreditCard,
+  Smartphone,
+  ShieldCheck,
+  Sparkles,
+  BookOpen,
+  User,
+  Tag,
+  CheckCircle2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { useCourse } from "@/lib/api/queries/courses";
 import { useCourseProgress } from "@/lib/api/queries/lesson-progress";
 import { postJson } from "@/lib/api/client-fetch";
@@ -24,38 +38,38 @@ import {
 import { useProfile } from "@/lib/api/queries/profile";
 
 export default function CoursePage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const { data: course, isLoading, isError } = useCourse(id);
   const { data: progress } = useCourseProgress(id, { enabled: !!course?.has_access });
   const [enrolling, setEnrolling] = useState(false);
   const [couponCode, setCouponCode] = useState("");
-  const [provider, setProvider] = useState<"kasher" | "daffaa">(
-    (process.env.NEXT_PUBLIC_DEFAULT_PAYMENT_PROVIDER as "kasher" | "daffaa") || "kasher",
-  );
+  const [paymentMethod, setPaymentMethod] = useState<"gateway" | "manual_wallet">("gateway");
+
   const { data: profile } = useProfile();
   const { data: wishlistCourses } = useWishlistCourses({ enabled: !!profile });
   const addWishlist = useAddWishlistCourse();
   const removeWishlist = useRemoveWishlistCourse();
   const isWishlisted = !!wishlistCourses?.some((w) => w.course_id === id);
+
   const onToggleWishlist = () => {
     if (isWishlisted) removeWishlist.mutate(id);
     else addWishlist.mutate(id);
   };
 
-  // This page is fully client-rendered (data depends on the logged-in
-  // user's has_access), so the static layout.tsx title ("الكورس") is only
-  // a fallback until the real title loads - Next can't statically know a
-  // per-course title here the way generateMetadata would on a server page.
   useEffect(() => {
     if (course) document.title = `${course.title} | Goglish`;
   }, [course]);
 
   const onEnroll = async () => {
+    // If manual wallet is selected, redirect to the royal manual transfer page
+    if (paymentMethod === "manual_wallet") {
+      router.push(`/checkout/transfer/${id}${couponCode.trim() ? `?coupon=${encodeURIComponent(couponCode.trim())}` : ""}`);
+      return;
+    }
+
+    // Otherwise, proceed with the online gateway (Kashier - Visa / Wallet)
     setEnrolling(true);
-    // try/finally so `enrolling` always clears - without it, any unexpected
-    // exception here (not just an order.success/payment.success failure)
-    // left the button stuck on "جاري التحضير..." forever with no error
-    // shown, since execution never reached the setEnrolling(false) calls.
     try {
       const order = await postJson<{ id: string }>("/api/orders", {
         item_type: "course",
@@ -68,20 +82,13 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
       }
 
       const payment = await postJson<{ checkout_url: string }>(`/api/orders/${order.data.id}/pay`, {
-        provider,
+        provider: "kasher",
       });
       if (!payment.success) {
         toast.error(payment.message);
         return;
       }
 
-      // A real payment provider redirect leaves the SPA entirely, so this
-      // never mattered there - but a free course (or one discounted to zero
-      // by a coupon) never leaves this page at all; router.push() to the
-      // same route with just a new query string doesn't refetch useCourse()'s
-      // React Query cache, so the page kept showing "اشترك الآن" as if
-      // nothing happened even though the purchase succeeded. A full
-      // navigation forces everything (access state included) to load fresh.
       window.location.href = payment.data.checkout_url;
     } catch {
       toast.error("حصل خطأ غير متوقع، حاول تاني");
@@ -92,18 +99,21 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
 
   if (isError) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
-        <p className="text-small text-muted-foreground">تعذر تحميل الكورس.</p>
+      <div className="mx-auto w-full max-w-5xl px-4 py-16 text-center">
+        <p className="text-body text-muted-foreground">تعذر تحميل الكورس، يرجى المحاولة لاحقاً.</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       {isLoading || !course ? (
-        <div className="flex w-full flex-col gap-4">
-          <Skeleton className="h-9 w-2/3" />
-          <Skeleton className="h-24 w-full" />
+        <div className="flex flex-col gap-6">
+          <Skeleton className="h-44 w-full rounded-2xl" />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <Skeleton className="h-96 w-full rounded-2xl lg:col-span-2" />
+            <Skeleton className="h-96 w-full rounded-2xl" />
+          </div>
         </div>
       ) : (
         <>
@@ -122,118 +132,249 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
               },
             }}
           />
-          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-h2 text-secondary dark:text-white">{course.title}</h1>
-              {!!course.teachers.length && (
-                <p className="mt-1 text-small text-muted-foreground">
-                  المدرّس:{" "}
-                  {course.teachers.map((teacher, i) => (
-                    <span key={teacher.id}>
-                      {i > 0 && "، "}
-                      <Link href={`/teachers/${teacher.id}`} className="font-medium text-foreground underline">
-                        {teacher.display_name ?? "مدرّس"}
-                      </Link>
-                    </span>
-                  ))}
+
+          {/* Top Hero Banner Card */}
+          <div className="relative mb-8 overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-b from-card/90 via-card/60 to-card/40 p-6 sm:p-8 backdrop-blur-xl shadow-2xl">
+            <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-primary/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-20 -left-20 size-72 rounded-full bg-primary/5 blur-3xl" />
+
+            <div className="relative z-10 flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="border-primary/40 bg-primary/10 px-3 py-1 text-caption font-semibold text-primary">
+                  <Sparkles className="me-1 size-3.5" /> كورس معتمد
+                </Badge>
+                {course.has_access && (
+                  <Badge variant="default" className="bg-success text-success-foreground px-3 py-1 text-caption font-semibold">
+                    <CheckCircle2 className="me-1 size-3.5" /> أنت مشترك في هذا الكورس
+                  </Badge>
+                )}
+              </div>
+
+              <h1 className="text-h1 font-black tracking-tight text-foreground sm:text-4xl">
+                {course.title}
+              </h1>
+
+              {course.description && (
+                <p className="max-w-3xl text-body leading-relaxed text-muted-foreground">
+                  {course.description}
                 </p>
               )}
-              {course.description && (
-                <p className="mt-2 text-body text-muted-foreground">{course.description}</p>
-              )}
-            </div>
 
-            <div className="flex w-full flex-col gap-2 sm:w-56 sm:shrink-0">
-              {course.has_access ? (
-                <Button
-                  className="w-full"
-                  nativeButton={false}
-                  render={<Link href={progress?.next_lesson_id ? `/lessons/${progress.next_lesson_id}` : "#course-content"} />}
-                >
-                  <PlayCircle />
-                  متابعة التعلم
-                </Button>
-              ) : (
-                <>
-                  <p className="text-h3 text-secondary dark:text-white">
-                    {course.price_cents === 0
-                      ? "مجاني"
-                      : `${(course.price_cents / 100).toLocaleString("ar-EG")} ${course.currency}`}
-                  </p>
-                  <Input
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder="كود الخصم (اختياري)"
-                    aria-label="كود الخصم"
-                  />
-                  {course.price_cents > 0 && (
-                    <div className="flex gap-2">
-                      <Button
-                        className="flex-1"
-                        variant={provider === "kasher" ? "default" : "outline"}
-                        onClick={() => setProvider("kasher")}
-                      >
-                        كاشير
-                      </Button>
-                      <Button
-                        className="flex-1"
-                        variant={provider === "daffaa" ? "default" : "outline"}
-                        onClick={() => setProvider("daffaa")}
-                      >
-                        محفظة / إنستاباي
-                      </Button>
+              {!!course.teachers.length && (
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <div className="flex items-center gap-2 rounded-full border border-border/80 bg-muted/40 px-4 py-1.5 backdrop-blur-md">
+                    <div className="flex size-7 items-center justify-center rounded-full bg-primary/20 text-primary">
+                      <User className="size-4" />
                     </div>
-                  )}
-                  <Button className="w-full" disabled={enrolling} onClick={onEnroll}>
-                    {enrolling ? "جاري التحضير..." : "اشترك الآن"}
-                  </Button>
-                </>
-              )}
-              {profile && (
-                <Button
-                  className="w-full"
-                  variant="outline"
-                  disabled={addWishlist.isPending || removeWishlist.isPending}
-                  onClick={onToggleWishlist}
-                >
-                  <Heart className={cn("size-4", isWishlisted && "fill-destructive text-destructive")} />
-                  {isWishlisted ? "إزالة من المفضلة" : "أضف للمفضلة"}
-                </Button>
+                    <span className="text-small text-muted-foreground">المدرّس:</span>
+                    {course.teachers.map((teacher, i) => (
+                      <span key={teacher.id}>
+                        {i > 0 && "، "}
+                        <Link
+                          href={`/teachers/${teacher.id}`}
+                          className="font-bold text-foreground transition-colors hover:text-primary underline"
+                        >
+                          {teacher.display_name ?? "مدرّس Goglish"}
+                        </Link>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
-          {course.trailer_youtube_id && (
-            <section className="mt-8 w-full">
-              <YouTubePlayer videoId={course.trailer_youtube_id} title="فيديو تشويقي للكورس" />
-            </section>
-          )}
+          {/* Main Grid: Content (Right in RTL) & Checkout Card (Left in RTL) */}
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+            {/* Right Column: Video + Curriculum + Reviews */}
+            <div className="flex flex-col gap-8 lg:col-span-2">
+              {course.trailer_youtube_id && (
+                <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/60 p-4 shadow-xl backdrop-blur-md">
+                  <h3 className="mb-3 flex items-center gap-2 font-bold text-foreground">
+                    <PlayCircle className="size-5 text-primary" /> الفيديو التعريفي للكورس
+                  </h3>
+                  <div className="overflow-hidden rounded-xl">
+                    <YouTubePlayer videoId={course.trailer_youtube_id} title="فيديو تشويقي للكورس" />
+                  </div>
+                </div>
+              )}
 
-          <section id="course-content" className="mt-10 w-full scroll-mt-20">
-            <h2 className="text-h3 text-secondary dark:text-white">محتوى الكورس</h2>
-            <div className="mt-4 w-full">
-              <CourseModules courseId={course.id} hasAccess={course.has_access} />
-            </div>
-          </section>
-
-          {course.has_access && (
-            <section className="mt-10 w-full">
-              <h2 className="text-h3 text-secondary dark:text-white">امتحانات الكورس</h2>
-              <div className="mt-4 w-full">
-                <CourseExams courseId={course.id} />
+              {/* Course Curriculum / Modules Card */}
+              <div id="course-content" className="rounded-2xl border border-border/70 bg-card/60 p-6 shadow-xl backdrop-blur-md">
+                <div className="mb-6 flex items-center justify-between border-b border-border/60 pb-4">
+                  <h2 className="flex items-center gap-2.5 text-h3 font-bold text-foreground">
+                    <BookOpen className="size-6 text-primary" />
+                    محتوى الكورس والدروس
+                  </h2>
+                </div>
+                <CourseModules courseId={course.id} hasAccess={course.has_access} />
               </div>
-            </section>
-          )}
 
-          <section className="mt-10 w-full">
-            <h2 className="flex items-center gap-2 text-h3 text-secondary dark:text-white">
-              <Star className="size-5 text-primary" />
-              التقييمات
-            </h2>
-            <div className="mt-4 w-full">
-              <ReviewsSection targetType="course" targetId={course.id} />
+              {/* Exams Card if student has access */}
+              {course.has_access && (
+                <div className="rounded-2xl border border-border/70 bg-card/60 p-6 shadow-xl backdrop-blur-md">
+                  <h2 className="mb-4 text-h3 font-bold text-foreground">امتحانات واختبارات الكورس</h2>
+                  <CourseExams courseId={course.id} />
+                </div>
+              )}
+
+              {/* Reviews Card */}
+              <div className="rounded-2xl border border-border/70 bg-card/60 p-6 shadow-xl backdrop-blur-md">
+                <h2 className="mb-6 flex items-center gap-2.5 text-h3 font-bold text-foreground">
+                  <Star className="size-6 fill-primary text-primary" />
+                  تقييمات وآراء الطلاب
+                </h2>
+                <ReviewsSection targetType="course" targetId={course.id} />
+              </div>
             </div>
-          </section>
+
+            {/* Left Column: Sticky Luxury Checkout Card */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-24 flex flex-col gap-6">
+                <div className="relative overflow-hidden rounded-3xl border-2 border-primary/30 bg-gradient-to-b from-card via-card/95 to-card/80 p-6 shadow-2xl backdrop-blur-xl">
+                  <div className="pointer-events-none absolute -right-10 -top-10 size-36 rounded-full bg-primary/10 blur-2xl" />
+
+                  {course.has_access ? (
+                    <div className="flex flex-col gap-4 text-center">
+                      <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-success/20 text-success">
+                        <CheckCircle2 className="size-8" />
+                      </div>
+                      <h3 className="text-h3 font-bold text-foreground">أنت مشترك بالفعل</h3>
+                      <p className="text-small text-muted-foreground">
+                        يمكنك الآن متابعة مشاهدة الدروس وحل التمارين والاختبارات في أي وقت.
+                      </p>
+                      <Button
+                        size="lg"
+                        className="w-full font-bold text-base py-6 shadow-lg shadow-primary/20"
+                        nativeButton={false}
+                        render={<Link href={progress?.next_lesson_id ? `/lessons/${progress.next_lesson_id}` : "#course-content"} />}
+                      >
+                        <PlayCircle className="me-2 size-5" />
+                        متابعة التعلم
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-5">
+                      {/* Price Tag */}
+                      <div className="flex items-baseline justify-between border-b border-border/60 pb-4">
+                        <span className="text-small font-medium text-muted-foreground">سعر الكورس:</span>
+                        <div className="text-start">
+                          <span className="text-3xl font-black text-primary">
+                            {course.price_cents === 0
+                              ? "مجاني"
+                              : (course.price_cents / 100).toLocaleString("ar-EG")}
+                          </span>
+                          {course.price_cents > 0 && (
+                            <span className="ms-1.5 text-small font-bold text-foreground">
+                              {course.currency}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Coupon Input */}
+                      {course.price_cents > 0 && (
+                        <div className="flex flex-col gap-1.5">
+                          <label htmlFor="coupon" className="text-caption font-medium text-muted-foreground">
+                            كود الخصم (اختياري)
+                          </label>
+                          <div className="relative">
+                            <Tag className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              id="coupon"
+                              value={couponCode}
+                              onChange={(e) => setCouponCode(e.target.value)}
+                              placeholder="أدخل كود الخصم إذا كان لديك..."
+                              className="ps-9 font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Payment Method Selector */}
+                      {course.price_cents > 0 && (
+                        <div className="flex flex-col gap-2.5">
+                          <span className="text-caption font-semibold text-foreground">طريقة الدفع:</span>
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Option 1: Electronic Gateway (Visa / Wallet) */}
+                            <button
+                              type="button"
+                              onClick={() => setPaymentMethod("gateway")}
+                              className={cn(
+                                "flex flex-col items-center justify-center gap-2 rounded-xl border-2 p-3.5 text-center transition-all cursor-pointer",
+                                paymentMethod === "gateway"
+                                  ? "border-primary bg-primary/10 shadow-sm"
+                                  : "border-border/80 bg-muted/20 hover:border-border hover:bg-muted/50",
+                              )}
+                            >
+                              <CreditCard className={cn("size-5", paymentMethod === "gateway" ? "text-primary" : "text-muted-foreground")} />
+                              <span className="text-xs font-bold text-foreground leading-tight">فيزا / محفظة</span>
+                              <span className="text-[10px] text-muted-foreground">دفع إلكتروني فوري</span>
+                            </button>
+
+                            {/* Option 2: Manual Wallet Transfer */}
+                            <button
+                              type="button"
+                              onClick={() => setPaymentMethod("manual_wallet")}
+                              className={cn(
+                                "flex flex-col items-center justify-center gap-2 rounded-xl border-2 p-3.5 text-center transition-all cursor-pointer relative",
+                                paymentMethod === "manual_wallet"
+                                  ? "border-primary bg-primary/10 shadow-sm"
+                                  : "border-border/80 bg-muted/20 hover:border-border hover:bg-muted/50",
+                              )}
+                            >
+                              <Smartphone className={cn("size-5", paymentMethod === "manual_wallet" ? "text-primary" : "text-muted-foreground")} />
+                              <span className="text-xs font-bold text-foreground leading-tight">محفظة</span>
+                              <span className="text-[10px] text-primary font-semibold">تحويل يدوي كاش</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Main Action Button */}
+                      <Button
+                        size="lg"
+                        className="w-full py-6 text-base font-bold shadow-xl shadow-primary/25 transition-all hover:scale-[1.01]"
+                        disabled={enrolling}
+                        onClick={onEnroll}
+                      >
+                        {enrolling
+                          ? "جاري التحضير..."
+                          : paymentMethod === "manual_wallet"
+                            ? "متابعة للدفع عبر المحفظة 📲"
+                            : "اشترك الآن 🚀"}
+                      </Button>
+
+                      {/* Guarantee and Perks */}
+                      <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/30 p-3 text-caption text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="size-4 text-primary" />
+                          <span>وصول فوري وشامل لجميع محاضرات الكورس</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="size-4 text-primary" />
+                          <span>جودة تصوير عالية Full HD مع امتحانات دورية</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Wishlist Button */}
+                  {profile && (
+                    <Button
+                      variant="outline"
+                      className="mt-4 w-full border-border/80 hover:bg-muted/50"
+                      disabled={addWishlist.isPending || removeWishlist.isPending}
+                      onClick={onToggleWishlist}
+                    >
+                      <Heart className={cn("me-2 size-4", isWishlisted && "fill-destructive text-destructive")} />
+                      {isWishlisted ? "إزالة من قائمة الرغبات" : "أضف للمفضلة"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>
