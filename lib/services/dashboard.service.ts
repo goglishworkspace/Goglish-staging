@@ -88,6 +88,49 @@ async function getUpcomingExam(supabase: SupabaseClient, userId: string, courseI
   return exams.find((exam) => !attemptedIds.has(exam.id)) ?? null;
 }
 
+/** Buckets the last 7 days of XP into a daily series (Option 3 - Day by Day: السبت، الأحد...). */
+async function getDailyProgress(supabase: SupabaseClient, userId: string) {
+  const since = new Date();
+  since.setDate(since.getDate() - 6);
+  since.setHours(0, 0, 0, 0);
+
+  const { data } = await supabase
+    .from("xp_transactions")
+    .select("amount, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", since.toISOString());
+
+  const arabicDays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  const buckets = new Map<string, number>();
+  for (const row of data ?? []) {
+    const d = new Date(row.created_at as string);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    buckets.set(dateKey, (buckets.get(dateKey) ?? 0) + (row.amount as number));
+  }
+
+  const days: { date: string; day_name: string; formatted_date: string; xp: number; is_today: boolean }[] = [];
+  const now = new Date();
+
+  // 6 days ago up to today (7 days continuous series)
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const isToday = i === 0;
+    const dayName = isToday ? "اليوم" : arabicDays[d.getDay()];
+    const formattedDate = `${d.getDate()}/${d.getMonth() + 1}`;
+
+    days.push({
+      date: dateKey,
+      day_name: dayName,
+      formatted_date: formattedDate,
+      xp: buckets.get(dateKey) ?? 0,
+      is_today: isToday,
+    });
+  }
+  return days;
+}
+
 /** Buckets the last 8 ISO weeks of XP into a fixed-size series - no
  * pre-aggregated weekly view exists in xp_transactions, so this is computed
  * here rather than in SQL. */
@@ -158,6 +201,7 @@ export type StudentDashboard = {
   latest_lesson: Awaited<ReturnType<typeof getLatestLesson>>;
   upcoming_quiz: Awaited<ReturnType<typeof getUpcomingQuiz>>;
   upcoming_exam: Awaited<ReturnType<typeof getUpcomingExam>>;
+  daily_progress: Awaited<ReturnType<typeof getDailyProgress>>;
   weekly_progress: Awaited<ReturnType<typeof getWeeklyProgress>>;
   course_progress: CourseProgress[];
   total_xp: number;
@@ -192,6 +236,7 @@ export async function getStudentDashboard(supabase: SupabaseClient, userId: stri
     latest_lesson,
     upcoming_quiz,
     upcoming_exam,
+    daily_progress,
     weekly_progress,
     course_progress,
     current_rank,
@@ -205,6 +250,7 @@ export async function getStudentDashboard(supabase: SupabaseClient, userId: stri
     getLatestLesson(supabase, moduleIds),
     getUpcomingQuiz(supabase, userId, moduleIds),
     getUpcomingExam(supabase, userId, courseIds),
+    getDailyProgress(supabase, userId),
     getWeeklyProgress(supabase, userId),
     getCourseProgressForStudent(supabase, userId),
     getMyRank(supabase, userId),
@@ -240,6 +286,7 @@ export async function getStudentDashboard(supabase: SupabaseClient, userId: stri
     latest_lesson,
     upcoming_quiz,
     upcoming_exam,
+    daily_progress,
     weekly_progress,
     course_progress,
     total_xp: profile?.xp_total ?? 0,

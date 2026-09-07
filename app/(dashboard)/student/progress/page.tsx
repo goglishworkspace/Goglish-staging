@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Trophy,
@@ -16,6 +16,7 @@ import {
   Zap,
   BookOpen,
   ArrowLeft,
+  Calendar,
 } from "lucide-react";
 import { useDashboard } from "@/lib/api/queries/dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+const ARABIC_DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const ARABIC_MONTHS = [
+  "يناير",
+  "فبراير",
+  "مارس",
+  "أبريل",
+  "مايو",
+  "يونيو",
+  "يوليو",
+  "أغسطس",
+  "سبتمبر",
+  "أكتوبر",
+  "نوفمبر",
+  "ديسمبر",
+];
 
 function formatWatchTime(seconds: number): string {
   if (!seconds || seconds <= 0) return "0 د";
@@ -34,46 +51,95 @@ function formatWatchTime(seconds: number): string {
   return `${Math.max(1, minutes)} دقيقة`;
 }
 
-function computeLast8Weeks(weeklyData: Array<{ week: string; xp: number }>) {
-  const result: Array<{ key: string; label: string; xp: number; isCurrent: boolean }> = [];
+type DayItem = {
+  date: string;
+  day_name: string;
+  formatted_date: string;
+  xp: number;
+  is_today: boolean;
+};
+
+type WeekItem = {
+  key: string;
+  label: string;
+  sublabel: string;
+  xp: number;
+  isCurrent: boolean;
+};
+
+function computeLast7Days(
+  serverDays?: Array<{
+    date: string;
+    day_name: string;
+    formatted_date: string;
+    xp: number;
+    is_today: boolean;
+  }>,
+): DayItem[] {
+  if (serverDays && serverDays.length === 7) {
+    return serverDays;
+  }
+
+  const now = new Date();
+  const days: DayItem[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const isToday = i === 0;
+    const dayName = isToday ? "اليوم" : ARABIC_DAYS[d.getDay()];
+    const formattedDate = `${d.getDate()}/${d.getMonth() + 1}`;
+
+    days.push({
+      date: dateKey,
+      day_name: dayName,
+      formatted_date: formattedDate,
+      xp: 0,
+      is_today: isToday,
+    });
+  }
+  return days;
+}
+
+function computeLast8WeeksWithDates(weeklyData: Array<{ week: string; xp: number }>): WeekItem[] {
+  const result: WeekItem[] = [];
   const now = new Date();
 
-  // Create lookup map from server weekly progress
+  // Map server weekly progress
   const serverMap = new Map<string, number>();
   for (const item of weeklyData) {
     serverMap.set(item.week, item.xp);
-    // Also store just the week number part (e.g. "36" from "2026-W36") as fallback
     const part = item.week.split("-W")[1];
     if (part) serverMap.set(part, item.xp);
   }
 
   for (let i = 7; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-    const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const weekStart = new Date(now.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+    const jan4 = new Date(Date.UTC(weekStart.getUTCFullYear(), 0, 4));
     const dayMs = 86400000;
-    const weekNum = Math.ceil(((d.getTime() - jan4.getTime()) / dayMs + jan4.getUTCDay() + 1) / 7);
-    const fullKey = `${d.getUTCFullYear()}-W${weekNum}`;
+    const weekNum = Math.ceil(((weekStart.getTime() - jan4.getTime()) / dayMs + jan4.getUTCDay() + 1) / 7);
+    const fullKey = `${weekStart.getUTCFullYear()}-W${weekNum}`;
     const isCurrent = i === 0;
 
-    // Check if server returned xp for fullKey or weekNum
     const xp = serverMap.get(fullKey) ?? serverMap.get(String(weekNum)) ?? 0;
+
+    // Readable date range: e.g. 1 - 7 سبتمبر
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const startMonth = ARABIC_MONTHS[weekStart.getMonth()];
+    const endMonth = ARABIC_MONTHS[weekEnd.getMonth()];
+    const dateRangeLabel =
+      startMonth === endMonth
+        ? `${weekStart.getDate()} - ${weekEnd.getDate()} ${startMonth}`
+        : `${weekStart.getDate()} ${startMonth} - ${weekEnd.getDate()} ${endMonth}`;
 
     result.push({
       key: fullKey,
-      label: isCurrent ? "هذا الأسبوع" : `أسبوع ${weekNum}`,
+      label: isCurrent ? "هذا الأسبوع" : dateRangeLabel,
+      sublabel: isCurrent ? dateRangeLabel : `أسبوع ${weekNum}`,
       xp,
       isCurrent,
     });
-  }
-
-  // Edge case: if server had weekly data with keys that didn't match the calculated weeks,
-  // ensure any active server item is represented
-  for (const item of weeklyData) {
-    const exists = result.some((r) => r.key === item.week || r.label.includes(item.week.split("-W")[1] ?? ""));
-    if (!exists && result.length > 0) {
-      // Replace the last non-current matching or merge
-      result[result.length - 1].xp += item.xp;
-    }
   }
 
   return result;
@@ -81,6 +147,7 @@ function computeLast8Weeks(weeklyData: Array<{ week: string; xp: number }>) {
 
 export default function ProgressPage() {
   const { data: dashboard, isLoading, isError } = useDashboard();
+  const [chartMode, setChartMode] = useState<"daily" | "weekly">("daily");
 
   const courses = dashboard?.course_progress ?? [];
   const totalCourses = courses.length;
@@ -93,34 +160,43 @@ export default function ProgressPage() {
     : 0;
   const totalWatchSeconds = courses.reduce((sum, c) => sum + (c.watch_time_seconds || 0), 0);
 
-  const weeklyWeeks = useMemo(() => {
-    return computeLast8Weeks(dashboard?.weekly_progress ?? []);
+  // Daily 7-day view (Option 3 requested by user)
+  const last7Days = useMemo(() => {
+    return computeLast7Days(dashboard?.daily_progress);
+  }, [dashboard?.daily_progress]);
+
+  // Weekly view with readable date ranges
+  const last8Weeks = useMemo(() => {
+    return computeLast8WeeksWithDates(dashboard?.weekly_progress ?? []);
   }, [dashboard?.weekly_progress]);
 
-  const totalWeeklyXp = weeklyWeeks.reduce((acc, w) => acc + w.xp, 0);
-  const maxXp = Math.max(50, ...weeklyWeeks.map((w) => w.xp));
+  const totalDailyXp = last7Days.reduce((acc, d) => acc + d.xp, 0);
+  const totalWeeklyXp = last8Weeks.reduce((acc, w) => acc + w.xp, 0);
+
+  const maxDailyXp = Math.max(20, ...last7Days.map((d) => d.xp));
+  const maxWeeklyXp = Math.max(50, ...last8Weeks.map((w) => w.xp));
 
   const rankData = dashboard?.current_rank as { rank: number; xp: number } | null;
   const levelData = dashboard?.level;
 
   return (
-    <div className="flex w-full flex-col gap-8 pb-12">
+    <div className="flex w-full flex-col gap-8 pb-16">
       {/* Top Banner Header */}
-      <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-card via-card/90 to-primary/5 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
-        <div className="absolute -left-12 -top-12 size-60 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-12 -right-12 size-60 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl border border-primary/25 bg-gradient-to-br from-card via-card/95 to-primary/10 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+        <div className="pointer-events-none absolute -left-14 -top-14 size-60 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-14 -right-14 size-60 rounded-full bg-amber-500/15 blur-3xl" />
 
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary w-fit">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary w-fit">
               <Sparkles className="size-3.5" />
               <span>لوحة متابعة الإنجاز والنشاط الأكاديمي</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+            <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl lg:text-4xl">
               سجل <span className="text-primary">التقدم الملكي</span>
             </h1>
-            <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
-              تتبع نشاطك الأسبوعي، مستويات الخبرة (XP)، أيام الحماس المتتالية، ومعدلات إنجازك لكل كورس.
+            <p className="max-w-xl text-xs text-muted-foreground sm:text-sm leading-relaxed">
+              تتبع نشاطك اليومي والأسبوعي، مستويات الخبرة (XP)، أيام الحماس المتتالية، ومعدلات إنجازك لكل كورس.
             </p>
           </div>
 
@@ -265,7 +341,7 @@ export default function ProgressPage() {
             </Card>
           </div>
 
-          {/* Weekly Progress Royal Chart */}
+          {/* Activity Royal Chart Card (Daily & Weekly Views) */}
           <Card className="relative overflow-hidden rounded-3xl border border-border/70 bg-card/80 p-6 shadow-xl backdrop-blur-xl sm:p-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/50 pb-5">
               <div className="flex items-center gap-3">
@@ -274,83 +350,193 @@ export default function ProgressPage() {
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-foreground sm:text-xl">
-                    مخطط النشاط الأسبوعي (XP)
+                    مخطط النشاط والتعلم (XP)
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    تطور نقاط الخبرة التي جمعتها خلال آخر 8 أسابيع
+                    {chartMode === "daily"
+                      ? "مستوى نشاطك اليومي على مدار آخر 7 أيام (السبت - الجمعة)"
+                      : "تطور نقاط الخبرة عبر أسابيع المذاكرة المتتالية"}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              {/* Mode Toggle & Stat Pill */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center rounded-xl border border-border/70 bg-background/60 p-1 backdrop-blur-md">
+                  <button
+                    type="button"
+                    onClick={() => setChartMode("daily")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+                      chartMode === "daily"
+                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Calendar className="size-3.5" />
+                    <span>يومي (آخر 7 أيام)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChartMode("weekly")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+                      chartMode === "weekly"
+                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <BarChart3 className="size-3.5" />
+                    <span>أسبوعي (8 أسابيع)</span>
+                  </button>
+                </div>
+
                 <div className="rounded-xl border border-border/60 bg-background/60 px-3.5 py-1.5 text-xs backdrop-blur-md">
-                  <span className="text-muted-foreground">إجمالي نشاط الفترة: </span>
-                  <span className="font-bold text-primary">{totalWeeklyXp.toLocaleString()} XP</span>
+                  <span className="text-muted-foreground">إجمالي النشاط: </span>
+                  <span className="font-bold text-primary">
+                    {chartMode === "daily"
+                      ? `${totalDailyXp.toLocaleString()} XP`
+                      : `${totalWeeklyXp.toLocaleString()} XP`}
+                  </span>
                 </div>
               </div>
             </div>
 
             <CardContent className="p-0 pt-8">
-              {/* Luxury Chart Bars */}
-              <div className="grid grid-cols-8 gap-2 sm:gap-4 h-60 items-end w-full px-1">
-                {weeklyWeeks.map((w) => {
-                  const barPercent = maxXp > 0 && w.xp > 0 ? Math.max(8, (w.xp / maxXp) * 100) : 4;
-                  return (
-                    <div
-                      key={w.key}
-                      className="group flex flex-col items-center justify-end h-full gap-2 relative"
-                    >
-                      {/* Tooltip on hover / active */}
-                      <div className="absolute -top-9 z-20 hidden group-hover:flex flex-col items-center pointer-events-none transition-all duration-200">
-                        <div className="rounded-lg border border-primary/40 bg-popover px-2 py-1 text-[11px] font-bold text-popover-foreground shadow-xl">
-                          {w.xp} XP
+              {/* Option 3: Daily Activity View (7 Days: السبت، الأحد، الإثنين...) */}
+              {chartMode === "daily" ? (
+                <div className="grid grid-cols-7 gap-2 sm:gap-4 h-60 items-end w-full px-1">
+                  {last7Days.map((d) => {
+                    const barPercent = maxDailyXp > 0 && d.xp > 0 ? Math.max(10, (d.xp / maxDailyXp) * 100) : 4;
+                    return (
+                      <div
+                        key={d.date}
+                        className="group flex flex-col items-center justify-end h-full gap-2 relative"
+                      >
+                        {/* Tooltip on hover */}
+                        <div className="absolute -top-9 z-20 hidden group-hover:flex flex-col items-center pointer-events-none transition-all duration-200">
+                          <div className="rounded-lg border border-primary/40 bg-popover px-2.5 py-1 text-[11px] font-bold text-popover-foreground shadow-xl whitespace-nowrap">
+                            {d.day_name} ({d.formatted_date}) • {d.xp} XP
+                          </div>
+                          <div className="size-1.5 rotate-45 bg-popover border-b border-r border-primary/40 -mt-1" />
                         </div>
-                        <div className="size-1.5 rotate-45 bg-popover border-b border-r border-primary/40 -mt-1" />
-                      </div>
 
-                      {/* XP Label above bar if > 0 */}
-                      {w.xp > 0 && (
-                        <span className="text-[10px] font-bold text-primary group-hover:opacity-0 transition-opacity">
-                          {w.xp}
-                        </span>
-                      )}
+                        {/* XP Badge above bar if > 0 */}
+                        {d.xp > 0 && (
+                          <span className="text-[10px] font-bold text-primary group-hover:opacity-0 transition-opacity">
+                            {d.xp} XP
+                          </span>
+                        )}
 
-                      {/* Bar Track Container */}
-                      <div className="relative w-full max-w-[42px] h-44 rounded-2xl bg-muted/40 p-1 flex items-end justify-center border border-border/40 group-hover:border-primary/40 transition-colors">
+                        {/* Bar Track Container */}
                         <div
                           className={cn(
-                            "w-full rounded-xl transition-all duration-500",
-                            w.xp > 0
-                              ? w.isCurrent
-                                ? "bg-gradient-to-t from-primary via-amber-500 to-amber-300 shadow-md shadow-amber-500/30 ring-1 ring-amber-400"
-                                : "bg-gradient-to-t from-primary/70 via-primary to-amber-400 shadow-sm shadow-primary/20"
-                              : "bg-muted/60 h-2",
-                          )}
-                          style={{ height: w.xp > 0 ? `${barPercent}%` : "6px" }}
-                        />
-                      </div>
-
-                      {/* Week Label */}
-                      <div className="flex flex-col items-center text-center">
-                        <span
-                          className={cn(
-                            "text-[10px] sm:text-xs font-semibold whitespace-nowrap",
-                            w.isCurrent ? "text-primary font-bold" : "text-muted-foreground",
+                            "relative w-full max-w-[48px] h-44 rounded-2xl bg-muted/40 p-1 flex items-end justify-center border transition-all",
+                            d.is_today
+                              ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
+                              : "border-border/40 group-hover:border-primary/40",
                           )}
                         >
-                          {w.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                          <div
+                            className={cn(
+                              "w-full rounded-xl transition-all duration-500",
+                              d.xp > 0
+                                ? d.is_today
+                                  ? "bg-gradient-to-t from-primary via-amber-500 to-amber-300 shadow-md shadow-amber-500/40 ring-1 ring-amber-300"
+                                  : "bg-gradient-to-t from-primary/70 via-primary to-amber-400 shadow-sm shadow-primary/25"
+                                : "bg-muted/60 h-2",
+                            )}
+                            style={{ height: d.xp > 0 ? `${barPercent}%` : "6px" }}
+                          />
+                        </div>
 
-              {totalWeeklyXp === 0 && (
+                        {/* Day Name & Date Labels */}
+                        <div className="flex flex-col items-center text-center">
+                          <span
+                            className={cn(
+                              "text-xs font-bold whitespace-nowrap",
+                              d.is_today ? "text-primary" : "text-foreground/90",
+                            )}
+                          >
+                            {d.day_name}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-medium">
+                            {d.formatted_date}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Weekly Activity View (8 Weeks with readable dates: 1-7 سبتمبر، إلخ) */
+                <div className="grid grid-cols-8 gap-2 sm:gap-4 h-60 items-end w-full px-1">
+                  {last8Weeks.map((w) => {
+                    const barPercent = maxWeeklyXp > 0 && w.xp > 0 ? Math.max(8, (w.xp / maxWeeklyXp) * 100) : 4;
+                    return (
+                      <div
+                        key={w.key}
+                        className="group flex flex-col items-center justify-end h-full gap-2 relative"
+                      >
+                        {/* Tooltip on hover */}
+                        <div className="absolute -top-9 z-20 hidden group-hover:flex flex-col items-center pointer-events-none transition-all duration-200">
+                          <div className="rounded-lg border border-primary/40 bg-popover px-2.5 py-1 text-[11px] font-bold text-popover-foreground shadow-xl whitespace-nowrap">
+                            {w.label} ({w.sublabel}) • {w.xp} XP
+                          </div>
+                          <div className="size-1.5 rotate-45 bg-popover border-b border-r border-primary/40 -mt-1" />
+                        </div>
+
+                        {/* XP Badge above bar if > 0 */}
+                        {w.xp > 0 && (
+                          <span className="text-[10px] font-bold text-primary group-hover:opacity-0 transition-opacity">
+                            {w.xp}
+                          </span>
+                        )}
+
+                        {/* Bar Track Container */}
+                        <div
+                          className={cn(
+                            "relative w-full max-w-[42px] h-44 rounded-2xl bg-muted/40 p-1 flex items-end justify-center border transition-all",
+                            w.isCurrent
+                              ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
+                              : "border-border/40 group-hover:border-primary/40",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "w-full rounded-xl transition-all duration-500",
+                              w.xp > 0
+                                ? w.isCurrent
+                                  ? "bg-gradient-to-t from-primary via-amber-500 to-amber-300 shadow-md shadow-amber-500/30 ring-1 ring-amber-400"
+                                  : "bg-gradient-to-t from-primary/70 via-primary to-amber-400 shadow-sm shadow-primary/20"
+                                : "bg-muted/60 h-2",
+                            )}
+                            style={{ height: w.xp > 0 ? `${barPercent}%` : "6px" }}
+                          />
+                        </div>
+
+                        {/* Week Label with Dates */}
+                        <div className="flex flex-col items-center text-center">
+                          <span
+                            className={cn(
+                              "text-[10px] sm:text-xs font-semibold whitespace-nowrap",
+                              w.isCurrent ? "text-primary font-bold" : "text-muted-foreground",
+                            )}
+                          >
+                            {w.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {(chartMode === "daily" ? totalDailyXp : totalWeeklyXp) === 0 && (
                 <div className="mt-6 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-center text-xs text-muted-foreground">
                   <Sparkles className="size-4 text-primary" />
                   <span>
-                    سجّل حضورك وذاكر هذا الأسبوع لتبدأ جمع نقاط الـ XP والارتقاء في لوحة الشرف!
+                    سجّل حضورك وذاكر اليوم لتبدأ جمع نقاط الـ XP والارتقاء في لوحة الشرف!
                   </span>
                 </div>
               )}
@@ -457,7 +643,7 @@ export default function ProgressPage() {
                             </span>
                           </div>
 
-                          <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60 p-0.5">
+                          <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60 border border-border/40 p-0.5">
                             <div
                               className={cn(
                                 "h-full rounded-full transition-all duration-700",

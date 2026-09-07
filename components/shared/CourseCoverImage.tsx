@@ -50,9 +50,9 @@ function CourseCoverImageInner({
             )}
           />
 
-          {/* Vignette & Gradient Overlays for readable badges and titles */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent opacity-80" />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent opacity-60" />
+          {/* Vignette & Gradient Overlays for readable badges and titles (neutral dark for both light and dark mode) */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent" />
         </>
       ) : null}
 
@@ -68,7 +68,7 @@ function CourseCoverImageInner({
             {alt}
           </span>
 
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
         </div>
       )}
     </div>
