@@ -62,7 +62,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.youtube.com",
               "frame-src https://www.youtube.com https://js.stripe.com https://checkout.stripe.com",
-              "img-src 'self' data: blob: https://*.supabase.co https://i.ytimg.com https://res.cloudinary.com",
+              "img-src 'self' data: blob: https: http://127.0.0.1:*",
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com",
               "style-src 'self' 'unsafe-inline'",
               "font-src 'self' data:",

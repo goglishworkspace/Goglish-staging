@@ -482,7 +482,13 @@ export default function ProgressPage() {
                                 : "bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90",
                             )}
                           >
-                            <span>{isCompleted ? "مراجعة الكورس" : "استئناف التعلم ▶"}</span>
+                            <span>
+                              {isCompleted
+                                ? "مراجعة الكورس"
+                                : isStarted
+                                  ? "استئناف التعلم ▶"
+                                  : "بدء المذاكرة الآن ▶"}
+                            </span>
                           </Button>
                         </div>
                       </div>
