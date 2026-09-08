@@ -50,9 +50,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const teacherProfile =
-      parsed.data.role_name === "teacher" && parsed.data.teacher_display_name
+      parsed.data.role_name === "teacher"
         ? {
-            display_name: parsed.data.teacher_display_name,
+            ...(parsed.data.teacher_display_name ? { display_name: parsed.data.teacher_display_name } : {}),
             ...(parsed.data.teacher_bio ? { bio: parsed.data.teacher_bio } : {}),
             ...(parsed.data.teacher_experience_years !== undefined
               ? { experience_years: parsed.data.teacher_experience_years }

@@ -381,7 +381,7 @@ export async function resetUserDevices(actorUserId: string, targetUserId: string
  * the app - e.g. linking a parent, self-registering as a teacher - are
  * additive on purpose and don't go through this function.) */
 export type AssignRoleTeacherProfile = {
-  display_name: string;
+  display_name?: string;
   bio?: string;
   photo_url?: string;
   experience_years?: number;
@@ -423,21 +423,43 @@ export async function assignRole(
     // it in. Without this, the teacher would be invisible on every public
     // page (the landing page and /api/teachers both filter out incomplete
     // profiles) until they found and used their own self-service profile
-    // form. Re-fetching the id here (rather than relying on the upsert's
-    // return value) works whether the row above was just inserted or already
-    // existed, since ignoreDuplicates means the upsert doesn't return
-    // conflicted rows.
-    if (teacherProfile) {
-      const { data: teacher, error: lookupError } = await admin
-        .from("teachers")
-        .select("id")
-        .eq("user_id", targetUserId)
+    // form.
+    const { data: teacher, error: lookupError } = await admin
+      .from("teachers")
+      .select("id")
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+
+    if (teacher) {
+      const { data: existingProfile } = await admin
+        .from("teacher_profiles")
+        .select("display_name")
+        .eq("teacher_id", teacher.id)
         .maybeSingle();
-      if (lookupError) throw lookupError;
-      if (teacher) {
+
+      const profileUpdates: Record<string, unknown> = {};
+      if (teacherProfile?.bio) profileUpdates.bio = teacherProfile.bio;
+      if (teacherProfile?.photo_url) profileUpdates.photo_url = teacherProfile.photo_url;
+      if (teacherProfile?.experience_years !== undefined) profileUpdates.experience_years = teacherProfile.experience_years;
+
+      if (teacherProfile?.display_name?.trim()) {
+        profileUpdates.display_name = teacherProfile.display_name.trim();
+      } else if (!existingProfile?.display_name) {
+        // Fallback to user's profile first_name + last_name
+        const { data: userProfile } = await admin
+          .from("profiles")
+          .select("first_name, last_name")
+          .eq("id", targetUserId)
+          .maybeSingle();
+        const fullName = [userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(" ").trim();
+        profileUpdates.display_name = fullName || "مدرس";
+      }
+
+      if (Object.keys(profileUpdates).length > 0) {
         const { error: profileError } = await admin
           .from("teacher_profiles")
-          .update(teacherProfile)
+          .update(profileUpdates)
           .eq("teacher_id", teacher.id);
         if (profileError) throw profileError;
       }

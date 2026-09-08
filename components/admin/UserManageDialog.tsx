@@ -124,6 +124,7 @@ function UserManageDialogInner({
   const [adminNotes, setAdminNotes] = useState(summaryUser.admin_notes ?? "");
   const [selectedCourseToGrant, setSelectedCourseToGrant] = useState("");
   const [roleToAssign, setRoleToAssign] = useState("");
+  const [teacherDisplayName, setTeacherDisplayName] = useState("");
 
   const assignableRoles = viewerIsSuperAdmin
     ? ASSIGNABLE_ROLES
@@ -443,7 +444,7 @@ function UserManageDialogInner({
                 </Badge>
               ))}
             </div>
-            <div className="flex gap-2 items-center mt-1">
+            <div className="flex flex-wrap gap-2 items-center mt-1">
               <Select value={roleToAssign} onValueChange={(val) => setRoleToAssign(val as string)}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="إسناد دور جديد" />
@@ -453,20 +454,57 @@ function UserManageDialogInner({
                     .filter((r) => !user.roles.includes(r))
                     .map((r) => (
                       <SelectItem key={r} value={r}>
-                        {r}
+                        {r === "teacher"
+                          ? "مدرس (teacher)"
+                          : r === "student"
+                            ? "طالب (student)"
+                            : r === "parent"
+                              ? "ولي أمر (parent)"
+                              : r === "admin"
+                                ? "أدمن (admin)"
+                                : r === "super_admin"
+                                  ? "سوبر أدمن (super_admin)"
+                                  : r === "moderator"
+                                    ? "مشرف (moderator)"
+                                    : r === "support"
+                                      ? "دعم فني (support)"
+                                      : r === "content_manager"
+                                        ? "مدير محتوى (content_manager)"
+                                        : r === "accountant"
+                                          ? "محاسب (accountant)"
+                                          : r}
                       </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
+              {roleToAssign === "teacher" && (
+                <Input
+                  className="w-56 text-small"
+                  placeholder={`اسم المدرس (افتراضي: ${[firstName, lastName].filter(Boolean).join(" ") || "مدرس"})`}
+                  value={teacherDisplayName}
+                  onChange={(e) => setTeacherDisplayName(e.target.value)}
+                />
+              )}
               <Button
                 size="sm"
                 disabled={!roleToAssign || assignRole.isPending}
                 onClick={() => {
+                  const nameToSend =
+                    roleToAssign === "teacher"
+                      ? teacherDisplayName.trim() || [firstName, lastName].filter(Boolean).join(" ").trim() || undefined
+                      : undefined;
                   assignRole.mutate(
-                    { id: user.id, input: { role_name: roleToAssign } },
+                    {
+                      id: user.id,
+                      input: {
+                        role_name: roleToAssign,
+                        ...(nameToSend ? { teacher_display_name: nameToSend } : {}),
+                      },
+                    },
                     toastHandlers(`تم إسناد دور ${roleToAssign}`),
                   );
                   setRoleToAssign("");
+                  setTeacherDisplayName("");
                 }}
               >
                 <Plus className="size-4" />
