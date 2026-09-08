@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Edit3, Send, DollarSign, Film } from "lucide-react";
+import { Plus, Trash2, Edit3, Send, DollarSign, Film, BookOpen, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContentStatusBadge } from "@/components/shared/ContentStatusBadge";
 import { QuestionForm } from "@/components/teacher/QuestionForm";
-import { useCourse, useUpdateCourse, useSubmitCourseForReview, type Course } from "@/lib/api/queries/courses";
+import {
+  useCourse,
+  useUpdateCourse,
+  useSubmitCourseForReview,
+  courseSubjectName,
+  courseGradeName,
+  type Course,
+} from "@/lib/api/queries/courses";
 import {
   useCourseModules,
   useModuleLessons,
@@ -1013,6 +1020,16 @@ function EditCourseDialog({
           <DialogTitle>تعديل بيانات الكورس</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          {(courseSubjectName(course) || courseGradeName(course)) && (
+            <div className="flex items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+              <BookOpen className="size-4 text-primary shrink-0" />
+              <div>
+                <span className="font-semibold text-foreground">المادة والصف الدراسي: </span>
+                <span className="font-medium text-primary">{courseSubjectName(course) ?? "غير محدد"}</span>
+                {courseGradeName(course) && <span className="text-muted-foreground"> ({courseGradeName(course)})</span>}
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="course-title">اسم / عنوان الكورس</Label>
             <Input id="course-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
@@ -1101,9 +1118,27 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
       ) : (
         <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <h1 className="text-h2 text-secondary dark:text-white">{course?.title}</h1>
-              {course && <ContentStatusBadge status={course.status} submittedAt={course.submitted_at} />}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-h2 text-secondary dark:text-white">{course?.title}</h1>
+                {course && <ContentStatusBadge status={course.status} submittedAt={course.submitted_at} />}
+              </div>
+              {course && (courseSubjectName(course) || courseGradeName(course)) && (
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  {courseSubjectName(course) && (
+                    <Badge variant="secondary" className="gap-1.5 px-3 py-1 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15">
+                      <BookOpen className="size-3.5" />
+                      <span>المادة: {courseSubjectName(course)}</span>
+                    </Badge>
+                  )}
+                  {courseGradeName(course) && (
+                    <Badge variant="outline" className="gap-1.5 px-3 py-1 text-xs font-medium text-muted-foreground border-border bg-muted/40">
+                      <GraduationCap className="size-3.5 text-primary" />
+                      <span>الصف: {courseGradeName(course)}</span>
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {course && (
@@ -1126,7 +1161,14 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
           )}
 
           {course && (
-            <div className="flex flex-wrap gap-4 text-caption text-muted-foreground border-t border-border pt-3">
+            <div className="flex flex-wrap items-center gap-4 text-caption text-muted-foreground border-t border-border pt-3">
+              {courseSubjectName(course) && (
+                <span className="flex items-center gap-1 font-medium text-foreground">
+                  <BookOpen className="size-4 text-primary" />
+                  المادة: {courseSubjectName(course)}
+                  {courseGradeName(course) && <span className="text-muted-foreground font-normal">({courseGradeName(course)})</span>}
+                </span>
+              )}
               <span className="flex items-center gap-1 font-medium text-foreground">
                 <DollarSign className="size-4 text-primary" />
                 السعر: {course.price_cents > 0 ? `${course.price_cents / 100} ج.م` : "مجاني"}

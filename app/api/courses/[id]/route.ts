@@ -14,7 +14,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data, error } = await supabase
     .from("courses")
-    .select("*")
+    .select("*, subjects(name, grades(name))")
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
@@ -101,7 +101,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .from("courses")
     .update(updatePayload)
     .eq("id", id)
-    .select()
+    .select("*, subjects(name, grades(name))")
     .maybeSingle();
 
   if (updateError) return apiError("تعذر تحديث الكورس", null, 400);

@@ -42,6 +42,11 @@ export function courseGradeName(course: Course): string | null {
   return grade?.name ?? null;
 }
 
+export function courseSubjectName(course: Course): string | null {
+  const subject = Array.isArray(course.subjects) ? course.subjects[0] : course.subjects;
+  return subject?.name ?? null;
+}
+
 export function useCourses(params?: { limit?: number; gradeId?: string; subjectId?: string }) {
   const { limit, gradeId, subjectId } = params ?? {};
   return useQuery({

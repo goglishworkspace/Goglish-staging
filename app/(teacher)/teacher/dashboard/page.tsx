@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,8 @@ import {
   useCreateCourse,
   useSubmitCourseForReview,
   useUpdateCourse,
+  courseSubjectName,
+  courseGradeName,
   type Course,
 } from "@/lib/api/queries/courses";
 import { slugify, extractYouTubeId } from "@/lib/utils";
@@ -234,6 +236,16 @@ function EditCourseDialog({ course }: { course: Course }) {
           <DialogTitle>تعديل بيانات الكورس</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          {(courseSubjectName(course) || courseGradeName(course)) && (
+            <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-muted-foreground">
+              <BookOpen className="size-4 text-primary shrink-0" />
+              <div>
+                <span className="font-semibold text-foreground">المادة: </span>
+                <span className="font-medium text-primary">{courseSubjectName(course) ?? "غير محدد"}</span>
+                {courseGradeName(course) && <span className="text-muted-foreground"> ({courseGradeName(course)})</span>}
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="edit-course-title">عنوان الكورس</Label>
             <Input
@@ -332,6 +344,7 @@ export default function TeacherContentOverviewPage() {
           <TableHeader>
             <TableRow>
               <TableHead>العنوان</TableHead>
+              <TableHead>المادة الدراسية</TableHead>
               <TableHead>الحالة</TableHead>
               <TableHead>إجراءات</TableHead>
             </TableRow>
@@ -343,6 +356,13 @@ export default function TeacherContentOverviewPage() {
                   <Link href={`/teacher/courses/${course.id}`} className="font-medium text-foreground underline">
                     {course.title}
                   </Link>
+                </TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5 text-small text-muted-foreground">
+                    <BookOpen className="size-3.5 text-primary" />
+                    <span>{courseSubjectName(course) ?? "-"}</span>
+                    {courseGradeName(course) && <span className="text-xs text-muted-foreground/80">({courseGradeName(course)})</span>}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <ContentStatusBadge status={course.status} submittedAt={course.submitted_at} />
