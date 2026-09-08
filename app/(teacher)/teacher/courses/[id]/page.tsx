@@ -1057,7 +1057,7 @@ function EditCourseDialog({
                 id="course-price"
                 type="number"
                 min="0"
-                step="5"
+                step="1"
                 value={priceEgp}
                 onChange={(e) => setPriceEgp(e.target.value)}
                 placeholder="مثلاً: 250"

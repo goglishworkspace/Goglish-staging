@@ -2,9 +2,11 @@ import { NextRequest } from "next/server";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { updateCourseSchema } from "@/lib/validation/course.schemas";
 import { hasCourseAccess } from "@/lib/services/entitlement.service";
 import { getDeletedUserIds } from "@/lib/services/teacher-visibility.service";
+import { canUserManageCourse } from "@/lib/services/course-permission.service";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -69,6 +71,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return apiError("بيانات غير صالحة", zodErrorsToApiErrors(parsed.error), 422);
   }
 
+  const authorized = await canUserManageCourse(user.id, id);
+  if (!authorized) {
+    return apiError("الكورس غير موجود أو ليس لديك صلاحية تعديله", null, 403);
+  }
+
+  const admin = createAdminClient();
   let isAdmin = false;
   try {
     const { data: roleCheck } = await supabase.rpc("user_has_any_role", {
@@ -89,7 +97,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updatePayload.submitted_at = new Date().toISOString();
   }
 
-  const { data: updated, error: updateError } = await supabase
+  const { data: updated, error: updateError } = await admin
     .from("courses")
     .update(updatePayload)
     .eq("id", id)
@@ -110,7 +118,13 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   } = await supabase.auth.getUser();
   if (!user) return apiError("لازم تسجل دخول الأول", null, 401);
 
-  const { data, error } = await supabase
+  const authorized = await canUserManageCourse(user.id, id);
+  if (!authorized) {
+    return apiError("الكورس غير موجود أو مش مسموح تحذفه", null, 403);
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from("courses")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)

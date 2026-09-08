@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { updateLessonSchema } from "@/lib/validation/lesson.schemas";
+import { canUserManageLesson } from "@/lib/services/course-permission.service";
 
 // youtube_video_id (the protected/paid video) is intentionally excluded, same
 // reasoning as modules/[id]/lessons/route.ts - it's still writable via PATCH
@@ -43,6 +45,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return apiError("بيانات غير صالحة", zodErrorsToApiErrors(parsed.error), 422);
   }
 
+  const authorized = await canUserManageLesson(user.id, id);
+  if (!authorized) {
+    return apiError("الدرس غير موجود أو ليس لديك صلاحية تعديله", null, 403);
+  }
+
+  const admin = createAdminClient();
   let isAdmin = false;
   try {
     const { data: roleCheck } = await supabase.rpc("user_has_any_role", {
@@ -62,7 +70,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updatePayload.submitted_at = new Date().toISOString();
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("lessons")
     .update(updatePayload)
     .eq("id", id)
@@ -83,7 +91,13 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   } = await supabase.auth.getUser();
   if (!user) return apiError("لازم تسجل دخول الأول", null, 401);
 
-  const { data, error } = await supabase
+  const authorized = await canUserManageLesson(user.id, id);
+  if (!authorized) {
+    return apiError("الدرس غير موجود أو مش مسموح تحذفه", null, 403);
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from("lessons")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)
