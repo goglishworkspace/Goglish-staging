@@ -18,7 +18,7 @@ export async function submitForReview(
     .from(table)
     .update({ submitted_at: new Date().toISOString() })
     .eq("id", id)
-    .in("status", ["draft", "rejected"])
+    .is("deleted_at", null)
     .select("id, status, submitted_at")
     .maybeSingle();
 

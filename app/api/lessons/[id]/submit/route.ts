@@ -11,6 +11,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!user) return apiError("لازم تسجل دخول الأول", null, 401);
 
   const data = await submitForReview(supabase, "lessons", id).catch(() => null);
-  if (!data) return apiError("تعذر إرسال الدرس للمراجعة (لازم يكون Draft/Rejected ومسموح لك تعدّله)", null, 403);
+  if (!data) return apiError("تعذر إرسال الدرس للمراجعة (تأكد من الصلاحيات وأن الدرس غير محذوف)", null, 403);
   return apiSuccess(data, "تم إرسال الدرس للمراجعة");
 }

@@ -521,11 +521,9 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
   const requestLessonDeletion = useRequestLessonDeletion(moduleId);
   const [editOpen, setEditOpen] = useState(false);
   const [showQuizzes, setShowQuizzes] = useState(false);
-  const canEdit = lesson.status === "draft" || lesson.status === "rejected";
-
   const onSubmitLesson = () => {
     submitLesson.mutate(lesson.id, {
-      onSuccess: () => toast.success("تم إرسال الدرس للمراجعة"),
+      onSuccess: () => toast.success("تم إرسال الدرس للمراجعة بنجاح"),
       onError: (err) => toast.error(apiErrorMessage(err, "تعذر إرسال الدرس للمراجعة")),
     });
   };
@@ -546,22 +544,18 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
           {lesson.is_preview && <p className="text-caption text-primary">فيه فيديو معاينة مربوط</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canEdit ? (
-            <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
-              تعديل
-            </Button>
-          ) : (
-            <span className="text-caption text-muted-foreground" title="الدرس منشور أو قيد المراجعة، مينفعش تتعدل بياناته الأساسية">
-              مقفول للتعديل
-            </span>
-          )}
+          <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+            <Edit3 className="size-3.5" />
+            تعديل
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setShowQuizzes((v) => !v)}>
             التدريبات
           </Button>
           <ContentStatusBadge status={lesson.status} submittedAt={lesson.submitted_at} />
-          {(lesson.status === "draft" || lesson.status === "rejected") && !lesson.submitted_at && (
+          {!lesson.submitted_at && (
             <Button size="sm" disabled={submitLesson.isPending} onClick={onSubmitLesson}>
-              إرسال للمراجعة
+              <Send className="size-3.5" />
+              {lesson.status === "published" ? "إرسال التعديل للمراجعة" : "إرسال للمراجعة"}
             </Button>
           )}
           {lesson.deletion_requested_at ? (
@@ -573,7 +567,7 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
               disabled={requestLessonDeletion.isPending}
               onClick={onRequestDeletion}
             >
-              <Trash2 />
+              <Trash2 className="size-3.5" />
               طلب حذف
             </Button>
           )}
@@ -582,8 +576,14 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
 
       {showQuizzes && <LessonQuizzesPanel lessonId={lesson.id} />}
 
-      {canEdit && (
-        <EditLessonDialog lesson={lesson} open={editOpen} onOpenChange={setEditOpen} moduleId={moduleId} />
+      {editOpen && (
+        <EditLessonDialog
+          key={`${lesson.id}-${editOpen}`}
+          lesson={lesson}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          moduleId={moduleId}
+        />
       )}
     </li>
   );
@@ -1112,10 +1112,10 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
                   تعديل بيانات الكورس
                 </Button>
               )}
-              {course && course.status !== "published" && (
+              {course && !course.submitted_at && (
                 <Button disabled={submitCourse.isPending} onClick={onSubmitForReview}>
                   <Send className="size-4" />
-                  إرسال للمراجعة
+                  {course.status === "published" ? "إرسال التحديثات للمراجعة" : "إرسال للمراجعة"}
                 </Button>
               )}
             </div>
@@ -1140,8 +1140,9 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
 
-          {course && (
+          {course && editingCourse && (
             <EditCourseDialog
+              key={`${course.id}-${editingCourse}`}
               course={course}
               open={editingCourse}
               onOpenChange={setEditingCourse}
