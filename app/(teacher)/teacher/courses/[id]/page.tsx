@@ -1,8 +1,9 @@
 "use client";
 
 import { use, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Edit3, Send, DollarSign, Film, BookOpen, GraduationCap } from "lucide-react";
+import { Plus, Trash2, Edit3, Send, DollarSign, Film, BookOpen, GraduationCap, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,8 @@ import {
   useUpdateModule,
   useCreateLesson,
   useUpdateLesson,
+  useReorderLessons,
+  useReorderModules,
   useSubmitLessonForReview,
   useRequestModuleDeletion,
   useRequestLessonDeletion,
@@ -57,7 +60,7 @@ import {
   type Exam,
 } from "@/lib/api/queries/exams";
 import type { QuestionInput } from "@/lib/api/queries/question-types";
-import { extractYouTubeId } from "@/lib/utils";
+import { extractYouTubeId, cn } from "@/lib/utils";
 import { useLessonResources, useUploadLessonResource, useRequestResourceDeletion } from "@/lib/api/queries/lesson-resources";
 import { FileText } from "lucide-react";
 
@@ -523,7 +526,35 @@ function AddLessonForm({ moduleId, nextOrder, onDone }: { moduleId: string; next
   );
 }
 
-function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
+function LessonRow({
+  lesson,
+  moduleId,
+  index,
+  total,
+  onMoveUp,
+  onMoveDown,
+  isDragging,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
+}: {
+  lesson: Lesson;
+  moduleId: string;
+  index: number;
+  total: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+}) {
   const submitLesson = useSubmitLessonForReview(moduleId);
   const requestLessonDeletion = useRequestLessonDeletion(moduleId);
   const [editOpen, setEditOpen] = useState(false);
@@ -543,14 +574,79 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
   };
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg bg-muted/50 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-medium text-foreground">{lesson.title}</p>
-          {lesson.rejection_reason && <p className="text-caption text-destructive">السبب: {lesson.rejection_reason}</p>}
-          {lesson.is_preview && <p className="text-caption text-primary">فيه فيديو معاينة مربوط</p>}
+    <li
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={cn(
+        "group flex flex-col gap-2 rounded-xl border p-3 transition-all duration-150 select-none",
+        isDragging && "opacity-40 border-dashed border-primary bg-primary/5 scale-[0.99]",
+        isDragOver && !isDragging && "border-primary bg-primary/10 ring-2 ring-primary/30 shadow-md",
+        !isDragging && !isDragOver && "border-border bg-card hover:border-primary/40 hover:shadow-xs"
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {/* 6-dots grip handle */}
+          <div
+            className="flex items-center text-muted-foreground/50 group-hover:text-primary transition-colors cursor-grab active:cursor-grabbing p-1 rounded-md hover:bg-muted"
+            title="اسحب لتغيير ترتيب الدرس"
+          >
+            <GripVertical className="size-5" />
+          </div>
+
+          {/* Up / Down quick buttons */}
+          <div
+            className="flex flex-col gap-0.5"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveUp();
+              }}
+              disabled={index === 0}
+              className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-20 disabled:pointer-events-none transition-colors"
+              title="تحريك لأعلى"
+            >
+              <ChevronUp className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown();
+              }}
+              disabled={index === total - 1}
+              className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-20 disabled:pointer-events-none transition-colors"
+              title="تحريك لأسفل"
+            >
+              <ChevronDown className="size-3.5" />
+            </button>
+          </div>
+
+          {/* Order Badge */}
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+            #{index + 1}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground truncate">{lesson.title}</p>
+            <div className="flex flex-wrap items-center gap-2 mt-0.5">
+              {lesson.rejection_reason && <p className="text-caption text-destructive">السبب: {lesson.rejection_reason}</p>}
+              {lesson.is_preview && <span className="text-caption text-primary font-medium">معاينة مجانية</span>}
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+
+        <div
+          className="flex flex-wrap items-center gap-2 shrink-0"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
             <Edit3 className="size-3.5" />
             تعديل
@@ -596,13 +692,29 @@ function LessonRow({ lesson, moduleId }: { lesson: Lesson; moduleId: string }) {
   );
 }
 
-function ModuleSection({ module: mod }: { module: CourseModule }) {
+function ModuleSection({
+  module: mod,
+  index,
+  total,
+  onMoveUp,
+  onMoveDown,
+}: {
+  module: CourseModule;
+  index: number;
+  total: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
   const { data: lessons, isLoading } = useModuleLessons(mod.id);
   const updateModule = useUpdateModule(mod.course_id);
+  const reorderLessons = useReorderLessons(mod.id);
   const requestModuleDeletion = useRequestModuleDeletion(mod.course_id);
+  const queryClient = useQueryClient();
   const [addingLesson, setAddingLesson] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(mod.title);
+  const [draggedLessonIndex, setDraggedLessonIndex] = useState<number | null>(null);
+  const [dragOverLessonIndex, setDragOverLessonIndex] = useState<number | null>(null);
 
   const onSaveTitle = () => {
     if (!titleDraft.trim()) return;
@@ -625,10 +737,30 @@ function ModuleSection({ module: mod }: { module: CourseModule }) {
     });
   };
 
+  const onReorderLessons = (fromIndex: number, toIndex: number) => {
+    if (!lessons || fromIndex === toIndex || toIndex < 0 || toIndex >= lessons.length) return;
+    const newLessons = [...lessons];
+    const [moved] = newLessons.splice(fromIndex, 1);
+    newLessons.splice(toIndex, 0, moved);
+
+    // Optimistic update
+    queryClient.setQueryData(["module-lessons", mod.id], newLessons);
+
+    reorderLessons.mutate(newLessons.map((l) => l.id), {
+      onSuccess: () => {
+        toast.success("تم حفظ ترتيب الدروس بنجاح");
+      },
+      onError: (err) => {
+        queryClient.setQueryData(["module-lessons", mod.id], lessons);
+        toast.error(apiErrorMessage(err, "تعذر حفظ ترتيب الدروس"));
+      },
+    });
+  };
+
   return (
     <Card className="w-full">
       <CardContent className="flex w-full flex-col gap-3 p-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {editingTitle ? (
             <div className="flex flex-1 items-center gap-2">
               <Input value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} className="max-w-64" />
@@ -640,7 +772,31 @@ function ModuleSection({ module: mod }: { module: CourseModule }) {
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
+              {/* Module Reorder Up/Down */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={onMoveUp}
+                  disabled={index === 0}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                  title="تحريك الوحدة لأعلى"
+                >
+                  <ChevronUp className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onMoveDown}
+                  disabled={index === total - 1}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-20 disabled:pointer-events-none transition-colors"
+                  title="تحريك الوحدة لأسفل"
+                >
+                  <ChevronDown className="size-4" />
+                </button>
+              </div>
+              <Badge variant="outline" className="font-semibold text-primary border-primary/20 bg-primary/5">
+                الوحدة {index + 1}
+              </Badge>
               <h3 className="font-semibold text-foreground">{mod.title}</h3>
               {mod.deletion_requested_at && <Badge variant="outline">قيد المراجعة للحذف</Badge>}
             </div>
@@ -681,8 +837,49 @@ function ModuleSection({ module: mod }: { module: CourseModule }) {
 
         {!isLoading && !!lessons?.length && (
           <ul className="flex w-full flex-col gap-2">
-            {lessons.map((lesson) => (
-              <LessonRow key={lesson.id} lesson={lesson} moduleId={mod.id} />
+            {lessons.map((lesson, lIndex) => (
+              <LessonRow
+                key={lesson.id}
+                lesson={lesson}
+                moduleId={mod.id}
+                index={lIndex}
+                total={lessons.length}
+                onMoveUp={() => onReorderLessons(lIndex, lIndex - 1)}
+                onMoveDown={() => onReorderLessons(lIndex, lIndex + 1)}
+                isDragging={draggedLessonIndex === lIndex}
+                isDragOver={dragOverLessonIndex === lIndex}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", String(lIndex));
+                  setDraggedLessonIndex(lIndex);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragOverLessonIndex !== lIndex) {
+                    setDragOverLessonIndex(lIndex);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverLessonIndex === lIndex) {
+                    setDragOverLessonIndex(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const sourceStr = e.dataTransfer.getData("text/plain");
+                  const source = sourceStr ? parseInt(sourceStr, 10) : draggedLessonIndex;
+                  setDraggedLessonIndex(null);
+                  setDragOverLessonIndex(null);
+                  if (source !== null && source !== undefined && !Number.isNaN(source) && source !== lIndex) {
+                    onReorderLessons(source, lIndex);
+                  }
+                }}
+                onDragEnd={() => {
+                  setDraggedLessonIndex(null);
+                  setDragOverLessonIndex(null);
+                }}
+              />
             ))}
           </ul>
         )}
@@ -1098,11 +1295,32 @@ function EditCourseDialog({
 
 export default function TeacherCourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const queryClient = useQueryClient();
   const { data: course, isLoading: courseLoading } = useCourse(id);
   const { data: modules, isLoading: modulesLoading } = useCourseModules(id);
   const submitCourse = useSubmitCourseForReview();
+  const reorderModules = useReorderModules(id);
   const [addingModule, setAddingModule] = useState(false);
   const [editingCourse, setEditingCourse] = useState(false);
+
+  const onReorderModules = (fromIndex: number, toIndex: number) => {
+    if (!modules || fromIndex === toIndex || toIndex < 0 || toIndex >= modules.length) return;
+    const newModules = [...modules];
+    const [moved] = newModules.splice(fromIndex, 1);
+    newModules.splice(toIndex, 0, moved);
+
+    queryClient.setQueryData(["course-modules", id], newModules);
+
+    reorderModules.mutate(newModules.map((m) => m.id), {
+      onSuccess: () => {
+        toast.success("تم حفظ ترتيب الوحدات بنجاح");
+      },
+      onError: (err) => {
+        queryClient.setQueryData(["course-modules", id], modules);
+        toast.error(apiErrorMessage(err, "تعذر حفظ ترتيب الوحدات"));
+      },
+    });
+  };
 
   const onSubmitForReview = () => {
     submitCourse.mutate(id, {
@@ -1218,8 +1436,15 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
 
       {!modulesLoading && !!modules?.length && (
         <div className="flex w-full flex-col gap-4">
-          {modules.map((mod) => (
-            <ModuleSection key={mod.id} module={mod} />
+          {modules.map((mod, mIndex) => (
+            <ModuleSection
+              key={mod.id}
+              module={mod}
+              index={mIndex}
+              total={modules.length}
+              onMoveUp={() => onReorderModules(mIndex, mIndex - 1)}
+              onMoveDown={() => onReorderModules(mIndex, mIndex + 1)}
+            />
           ))}
         </div>
       )}

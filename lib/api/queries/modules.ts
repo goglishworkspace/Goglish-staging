@@ -135,3 +135,35 @@ export function useRequestLessonDeletion(moduleId: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["module-lessons", moduleId] }),
   });
 }
+
+export function useReorderLessons(moduleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (lessonIds: string[]) => {
+      const { data } = await api.put<ApiSuccess<Lesson[]>>(`/api/modules/${moduleId}/lessons`, {
+        lesson_ids: lessonIds,
+      });
+      return data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["module-lessons", moduleId], data);
+      queryClient.invalidateQueries({ queryKey: ["module-lessons", moduleId] });
+    },
+  });
+}
+
+export function useReorderModules(courseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (moduleIds: string[]) => {
+      const { data } = await api.put<ApiSuccess<CourseModule[]>>(`/api/courses/${courseId}/modules`, {
+        module_ids: moduleIds,
+      });
+      return data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["course-modules", courseId], data);
+      queryClient.invalidateQueries({ queryKey: ["course-modules", courseId] });
+    },
+  });
+}
