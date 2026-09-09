@@ -6,18 +6,37 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createModuleSchema } from "@/lib/validation/module.schemas";
 import { canUserManageCourse } from "@/lib/services/course-permission.service";
 
+const LESSON_NESTED_COLUMNS =
+  "id, module_id, title, description, order_index, teacher_id, is_preview, status, " +
+  "submitted_at, rejection_reason, youtube_preview_video_id, bunny_video_duration_seconds, " +
+  "deletion_requested_at, deleted_at, created_at, updated_at";
+
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("modules")
-    .select("*")
+    .select(`
+      id, course_id, title, order_index, deletion_requested_at, created_at, updated_at,
+      lessons(${LESSON_NESTED_COLUMNS})
+    `)
     .eq("course_id", id)
     .order("order_index");
 
   if (error) return apiError("تعذر جلب الوحدات", null, 500);
-  return apiSuccess(data, "تم جلب الوحدات");
+
+  const modulesWithSortedLessons = (data ?? []).map((mod) => {
+    const rawLessons = (mod.lessons ?? []) as Array<{ order_index: number; deleted_at?: string | null }>;
+    return {
+      ...mod,
+      lessons: rawLessons
+        .filter((l) => !l.deleted_at)
+        .sort((a, b) => a.order_index - b.order_index),
+    };
+  });
+
+  return apiSuccess(modulesWithSortedLessons, "تم جلب الوحدات");
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -42,3 +43,15 @@ export async function createClient() {
     },
   );
 }
+
+/**
+ * Request-memoized helper for getting current user in Server Components and Route Handlers.
+ * Deduplicates multiple auth verification round-trips within a single request render.
+ */
+export const getCurrentUser = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+});

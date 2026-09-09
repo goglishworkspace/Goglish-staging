@@ -77,7 +77,9 @@ async function buildCertificatePdf(params: {
 
 /** Issues a certificate PDF for a passed exam attempt (Section 8 -
  * "Certificates عند الاجتياز"). Idempotent: attempt_id is UNIQUE on
- * `certificates`, so a re-submit / retry just returns the existing one. */
+ * `certificates`, so a re-submit / retry just returns the existing one.
+ * The PDF file construction itself is deferred to ensureCertificatePdf() when
+ * the certificate is first downloaded, keeping exam submission instantaneous. */
 export async function issueCertificateIfEligible(params: {
   userId: string;
   examId: string;
@@ -100,19 +102,7 @@ export async function issueCertificateIfEligible(params: {
 
   const certificateNumber = crypto.randomUUID().slice(0, 8).toUpperCase();
   const issuedAt = new Date();
-  const pdfBytes = await buildCertificatePdf({
-    studentName: params.studentName,
-    examTitle: params.examTitle,
-    scorePercent: params.scorePercent,
-    issuedAt,
-    certificateNumber,
-  });
-
   const storagePath = `${params.userId}/${params.attemptId}.pdf`;
-  const { error: uploadError } = await admin.storage
-    .from("certificates")
-    .upload(storagePath, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
-  if (uploadError) throw uploadError;
 
   const { data: cert, error: insertError } = await admin
     .from("certificates")
@@ -129,4 +119,57 @@ export async function issueCertificateIfEligible(params: {
   if (insertError) throw insertError;
 
   return { certificateId: cert.id };
+}
+
+/** Lazily builds and uploads the PDF for a certificate if it hasn't already been created.
+ * Called on first download via /api/certificates/[id]/signed-url. */
+export async function ensureCertificatePdf(certificateId: string): Promise<string> {
+  const admin = createAdminClient();
+
+  const { data: cert, error } = await admin
+    .from("certificates")
+    .select("id, user_id, exam_id, attempt_id, certificate_number, storage_path, issued_at")
+    .eq("id", certificateId)
+    .maybeSingle();
+  if (error || !cert) throw new Error("الشهادة غير موجودة");
+
+  const folder = cert.user_id;
+  const filename = `${cert.attempt_id}.pdf`;
+
+  // Check if file already exists in Storage
+  const { data: files } = await admin.storage
+    .from("certificates")
+    .list(folder, { search: filename });
+
+  const alreadyExists = files?.some((f) => f.name === filename);
+  if (alreadyExists) {
+    return cert.storage_path;
+  }
+
+  // Load attempt, exam, and profile details to assemble the certificate
+  const [profileRes, examRes, attemptRes] = await Promise.all([
+    admin.from("profiles").select("full_name").eq("id", cert.user_id).maybeSingle(),
+    admin.from("exams").select("title").eq("id", cert.exam_id).maybeSingle(),
+    admin.from("student_exam_attempts").select("score_percent").eq("id", cert.attempt_id).maybeSingle(),
+  ]);
+
+  const studentName = profileRes.data?.full_name ?? "Student";
+  const examTitle = examRes.data?.title ?? "Exam";
+  const scorePercent = attemptRes.data?.score_percent ?? 100;
+  const issuedAt = new Date(cert.issued_at);
+
+  const pdfBytes = await buildCertificatePdf({
+    studentName,
+    examTitle,
+    scorePercent,
+    issuedAt,
+    certificateNumber: cert.certificate_number,
+  });
+
+  const { error: uploadError } = await admin.storage
+    .from("certificates")
+    .upload(cert.storage_path, Buffer.from(pdfBytes), { contentType: "application/pdf", upsert: true });
+  if (uploadError) throw uploadError;
+
+  return cert.storage_path;
 }

@@ -13,26 +13,23 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCourseModules, useModuleLessons } from "@/lib/api/queries/modules";
+import { useCourseModules, type Lesson } from "@/lib/api/queries/modules";
 import { useCourseProgress } from "@/lib/api/queries/lesson-progress";
 import { CourseExams } from "@/components/marketing/CourseExams";
 import { cn } from "@/lib/utils";
 
 function ModuleProgressList({
-  moduleId,
+  lessons,
   currentLessonId,
   hasAccess,
   completedLessonIds,
 }: {
-  moduleId: string;
+  lessons: Lesson[];
   currentLessonId: string;
   hasAccess: boolean;
   completedLessonIds: Set<string>;
 }) {
-  const { data: lessons, isLoading } = useModuleLessons(moduleId);
-
-  if (isLoading) return <Skeleton className="h-20 w-full rounded-xl" />;
-  if (!lessons?.length) return null;
+  if (!lessons.length) return null;
 
   return (
     <ul className="flex flex-col gap-1.5">
@@ -110,12 +107,11 @@ export function CourseNavSidebar({
   currentLessonId: string;
   hasAccess: boolean;
 }) {
-  const { data: lessons, isLoading } = useModuleLessons(moduleId);
   const { data: modules, isLoading: modulesLoading } = useCourseModules(courseId);
   const { data: courseProgress } = useCourseProgress(courseId);
   const completedLessonIds = new Set(courseProgress?.completed_lesson_ids ?? []);
 
-  if (isLoading) {
+  if (modulesLoading) {
     return (
       <div className="flex w-full flex-col gap-3">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -125,10 +121,12 @@ export function CourseNavSidebar({
     );
   }
 
-  const currentIndex = lessons?.findIndex((l) => l.id === currentLessonId) ?? -1;
-  const prev = currentIndex > 0 ? lessons?.[currentIndex - 1] : null;
+  const currentModule = modules?.find((m) => m.id === moduleId);
+  const lessons = currentModule?.lessons ?? [];
+  const currentIndex = lessons.findIndex((l) => l.id === currentLessonId);
+  const prev = currentIndex > 0 ? lessons[currentIndex - 1] : null;
   const next =
-    currentIndex >= 0 && lessons && currentIndex < lessons.length - 1 ? lessons[currentIndex + 1] : null;
+    currentIndex >= 0 && currentIndex < lessons.length - 1 ? lessons[currentIndex + 1] : null;
 
   return (
     <div className="flex w-full flex-col gap-5 rounded-3xl border border-border/70 bg-card/75 p-5 backdrop-blur-xl shadow-xl">
@@ -222,7 +220,7 @@ export function CourseNavSidebar({
                   <p className="text-xs font-bold text-foreground truncate">{mod.title}</p>
                 </div>
                 <ModuleProgressList
-                  moduleId={mod.id}
+                  lessons={mod.lessons ?? []}
                   currentLessonId={currentLessonId}
                   hasAccess={hasAccess}
                   completedLessonIds={completedLessonIds}

@@ -8,6 +8,7 @@ export type CourseModule = {
   title: string;
   order_index: number;
   deletion_requested_at?: string | null;
+  lessons?: Lesson[];
 };
 
 export type Lesson = {

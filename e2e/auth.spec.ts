@@ -98,7 +98,7 @@ test.describe("Register -> confirm -> login", () => {
     await page.goto("/login");
     await page.getByLabel("الإيميل").fill("no-such-user@example.com");
     await page.getByLabel("الباسورد", { exact: true }).fill("WrongPass1!");
-    await page.getByRole("button", { name: "دخول" }).click();
+    await page.getByRole("button", { name: "دخول", exact: true }).click();
 
     await expect(page.getByText("الإيميل أو الباسورد غير صحيح")).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);

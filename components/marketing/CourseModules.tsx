@@ -3,12 +3,21 @@
 import Link from "next/link";
 import { Lock, PlayCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCourseModules, useModuleLessons, type CourseModule } from "@/lib/api/queries/modules";
+import { useCourseModules, useModuleLessons, type CourseModule, type Lesson } from "@/lib/api/queries/modules";
 
-function ModuleLessons({ moduleId, hasAccess }: { moduleId: string; hasAccess: boolean }) {
-  const { data: lessons, isLoading } = useModuleLessons(moduleId);
+function ModuleLessons({
+  moduleId,
+  hasAccess,
+  lessons: initialLessons,
+}: {
+  moduleId: string;
+  hasAccess: boolean;
+  lessons?: Lesson[];
+}) {
+  const { data: fetchedLessons, isLoading } = useModuleLessons(moduleId);
+  const lessons = initialLessons ?? fetchedLessons;
 
-  if (isLoading) return <Skeleton className="h-16 w-full" />;
+  if (!initialLessons && isLoading) return <Skeleton className="h-16 w-full" />;
   if (!lessons?.length) return <p className="text-small text-muted-foreground">لا يوجد دروس في هذه الوحدة.</p>;
 
   return (
@@ -60,7 +69,7 @@ export function CourseModules({ courseId, hasAccess }: { courseId: string; hasAc
       {modules.map((mod: CourseModule) => (
         <div key={mod.id} className="w-full">
           <h3 className="py-2.5 text-sm font-medium text-foreground">{mod.title}</h3>
-          <ModuleLessons moduleId={mod.id} hasAccess={hasAccess} />
+          <ModuleLessons moduleId={mod.id} hasAccess={hasAccess} lessons={mod.lessons} />
         </div>
       ))}
     </div>

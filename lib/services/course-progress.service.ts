@@ -77,24 +77,24 @@ export async function getCourseProgressForStudent(
     .eq("user_id", studentId)
     .is("revoked_at", null);
 
-  const results: CourseProgress[] = [];
-  for (const entitlement of entitlements ?? []) {
-    const course = entitlement.courses as unknown as {
-      title: string;
-      slug?: string | null;
-      cover_image_url?: string | null;
-      description?: string | null;
-    } | null;
-    results.push(
-      await computeCourseProgress(supabase, studentId, entitlement.course_id as string, {
+  if (!entitlements?.length) return [];
+
+  return Promise.all(
+    entitlements.map((entitlement) => {
+      const course = entitlement.courses as unknown as {
+        title: string;
+        slug?: string | null;
+        cover_image_url?: string | null;
+        description?: string | null;
+      } | null;
+      return computeCourseProgress(supabase, studentId, entitlement.course_id as string, {
         title: course?.title ?? "",
         slug: course?.slug ?? null,
         cover_image_url: course?.cover_image_url ?? null,
         description: course?.description ?? null,
-      }),
-    );
-  }
-  return results;
+      });
+    }),
+  );
 }
 
 /** Section 20 review eligibility - "بعد إنهاء الكورس": every published

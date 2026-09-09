@@ -16,7 +16,7 @@ export async function getDashboardStats() {
     { count: activeSubscriptionsCount },
     { count: pendingCommentsCount },
     { count: pendingContentCount },
-    { data: revenueRows },
+    rpcRevenue,
   ] = await Promise.all([
     admin.from("profiles").select("id", { count: "exact", head: true }).is("deleted_at", null),
     admin.from("teachers").select("id", { count: "exact", head: true }),
@@ -36,10 +36,17 @@ export async function getDashboardStats() {
       .select("id", { count: "exact", head: true })
       .eq("status", "draft")
       .not("submitted_at", "is", null),
-    admin.from("orders").select("total_cents").eq("status", "completed"),
+    admin.rpc("get_admin_financial_stats"),
   ]);
 
-  const totalRevenueCents = (revenueRows ?? []).reduce((sum, row) => sum + (row.total_cents as number), 0);
+  let totalRevenueCents = 0;
+  const rpcData = rpcRevenue.data as { total_revenue_cents?: number } | null;
+  if (!rpcRevenue.error && rpcData?.total_revenue_cents !== undefined) {
+    totalRevenueCents = Number(rpcData.total_revenue_cents);
+  } else {
+    const { data: fallbackRows } = await admin.from("orders").select("total_cents").eq("status", "completed");
+    totalRevenueCents = (fallbackRows ?? []).reduce((sum, row) => sum + (row.total_cents as number), 0);
+  }
 
   return {
     students_count: studentsCount ?? 0,

@@ -1,6 +1,7 @@
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureCertificatePdf } from "@/lib/services/certificate.service";
 
 const SIGNED_URL_TTL_SECONDS = 15 * 60;
 
@@ -21,6 +22,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .maybeSingle();
   if (error) return apiError("تعذر جلب الشهادة", null, 500);
   if (!certificate) return apiError("الشهادة غير موجودة", null, 404);
+
+  try {
+    await ensureCertificatePdf(certificate.id);
+  } catch {
+    return apiError("تعذر إنشاء ملف الشهادة", null, 500);
+  }
 
   const admin = createAdminClient();
   const { data: signed, error: signError } = await admin.storage

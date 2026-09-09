@@ -45,20 +45,22 @@ export async function proxy(request: NextRequest) {
       );
     }
 
-    const rule = resolveRateLimitRule(request.nextUrl.pathname);
-    const ip = getClientIp(request);
-    const allowed = await checkRateLimit(`${rule.key}:${ip}`, rule.maxCount, rule.windowSeconds, rule.failClosed);
+    const rule = resolveRateLimitRule(request.nextUrl.pathname, request.method);
+    if (rule) {
+      const ip = getClientIp(request);
+      const allowed = await checkRateLimit(`${rule.key}:${ip}`, rule.maxCount, rule.windowSeconds, rule.failClosed);
 
-    if (!allowed) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "عدد الطلبات كتير قوي، حاول تاني بعد شوية",
-          data: null,
-          errors: null,
-        },
-        { status: 429 },
-      );
+      if (!allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "عدد الطلبات كتير قوي، حاول تاني بعد شوية",
+            data: null,
+            errors: null,
+          },
+          { status: 429 },
+        );
+      }
     }
   }
 

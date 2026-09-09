@@ -14,7 +14,7 @@ import {
   TrendingUp,
   RotateCcw,
 } from "lucide-react";
-import { useDashboard } from "@/lib/api/queries/dashboard";
+import { useMyCourses } from "@/lib/api/queries/courses";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,11 +36,9 @@ function formatWatchTime(seconds: number): string {
 type FilterTab = "all" | "in_progress" | "completed" | "not_started";
 
 export default function MyCoursesPage() {
-  const { data: dashboard, isLoading, isError } = useDashboard();
+  const { data: courses = [], isLoading, isError } = useMyCourses();
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
-
-  const courses = dashboard?.course_progress ?? [];
 
   const completedCount = courses.filter((c) => c.completion_percent === 100).length;
   const inProgressCount = courses.filter(
@@ -160,7 +158,7 @@ export default function MyCoursesPage() {
       )}
 
       {/* Content */}
-      {!isLoading && dashboard && (
+      {!isLoading && !isError && (
         <>
           {courses.length === 0 ? (
             /* Empty State when student has no courses */

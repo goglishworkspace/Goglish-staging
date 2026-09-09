@@ -47,9 +47,13 @@ export function useSaveLessonProgress(lessonId: string) {
       const { data } = await api.post(`/api/lessons/${lessonId}/progress`, input);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lesson-progress", lessonId] });
-      queryClient.invalidateQueries({ queryKey: ["course-progress"] });
+    onSuccess: (_data, variables) => {
+      // Only invalidate queries when a lesson is marked completed.
+      // Routine heartbeat progress (seconds tracking) does not require re-fetching.
+      if (variables?.status === "completed") {
+        queryClient.invalidateQueries({ queryKey: ["lesson-progress", lessonId] });
+        queryClient.invalidateQueries({ queryKey: ["course-progress"] });
+      }
     },
   });
 }

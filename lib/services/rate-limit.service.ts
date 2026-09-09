@@ -38,8 +38,12 @@ export function getClientIp(request: NextRequest): string {
 }
 
 export type RateLimitRule = {
+  /** Optional HTTP method restriction (e.g. "POST"). If omitted, matches any method. */
+  method?: string;
   /** Prefix matched against the request pathname. */
-  pathPrefix: string;
+  pathPrefix?: string;
+  /** Exact regex pattern matched against the request pathname. */
+  pattern?: RegExp;
   key: string;
   maxCount: number;
   windowSeconds: number;
@@ -54,26 +58,36 @@ export type RateLimitRule = {
 };
 
 export const RATE_LIMIT_RULES: RateLimitRule[] = [
-  // Deliberately loose - this is the IP-wide "someone is hammering this
-  // endpoint" gate (scripted abuse / DoS-ish volume), counting every
-  // request regardless of outcome. The actual brute-force defense (wrong
-  // passwords against one specific account) is the separate, much
-  // stricter LOGIN_FAILURE_RATE_LIMIT enforced inside the login route
-  // itself, keyed by IP+email - that split means a student who logs in
-  // correctly several times never eats into the same budget as someone
-  // guessing a password, and one student's wrong attempts on a shared
-  // school/home IP can't lock out everyone else on that IP.
-  { pathPrefix: "/api/auth/login", key: "login", maxCount: 20, windowSeconds: 15 * 60, failClosed: true },
-  // More specific than the /api/auth/register rule below, so it must come
-  // first - resolveRateLimitRule() takes the first prefix match. This fires
-  // once per signUp() call (new attempt or retry alike, see
-  // app/(auth)/register/page.tsx), so it needs a budget close to how often
-  // people actually retry registration, not the stricter 3/hour meant to
-  // bound distinct full signups on /api/auth/register itself.
-  { pathPrefix: "/api/auth/register/sync-metadata", key: "register-sync", maxCount: 20, windowSeconds: 60 * 60 },
-  { pathPrefix: "/api/auth/register", key: "register", maxCount: 3, windowSeconds: 60 * 60 },
-  { pathPrefix: "/api/auth/forgot-password", key: "forgot-password", maxCount: 3, windowSeconds: 60 * 60 },
-  { pathPrefix: "/api/auth/verify-phone/request", key: "phone-otp-request", maxCount: 5, windowSeconds: 60 * 60 },
+  // Auth (mutating endpoints only)
+  { method: "POST", pattern: /^\/api\/auth\/login$/, key: "login", maxCount: 20, windowSeconds: 15 * 60, failClosed: true },
+  { method: "POST", pattern: /^\/api\/auth\/register\/sync-metadata$/, key: "register-sync", maxCount: 20, windowSeconds: 60 * 60 },
+  { method: "POST", pattern: /^\/api\/auth\/register$/, key: "register", maxCount: 3, windowSeconds: 60 * 60 },
+  { method: "POST", pattern: /^\/api\/auth\/forgot-password$/, key: "forgot-password", maxCount: 3, windowSeconds: 60 * 60 },
+  { method: "POST", pattern: /^\/api\/auth\/reset-password$/, key: "reset-password", maxCount: 5, windowSeconds: 15 * 60 },
+  { method: "POST", pattern: /^\/api\/auth\/verify-phone\/request$/, key: "phone-otp-request", maxCount: 5, windowSeconds: 60 * 60 },
+  { method: "POST", pattern: /^\/api\/auth\/verify-phone\/confirm$/, key: "phone-otp-confirm", maxCount: 5, windowSeconds: 15 * 60 },
+
+  // Quizzes & Exams
+  { method: "POST", pattern: /^\/api\/quizzes\/[^\/]+\/start$/, key: "quiz-start", maxCount: 10, windowSeconds: 5 * 60 },
+  { method: "POST", pattern: /^\/api\/quiz-attempts\/[^\/]+\/submit$/, key: "quiz-submit", maxCount: 10, windowSeconds: 5 * 60 },
+  { method: "POST", pattern: /^\/api\/quiz-attempts\/[^\/]+\/questions\/[^\/]+\/check$/, key: "quiz-check", maxCount: 30, windowSeconds: 60 },
+  { method: "POST", pattern: /^\/api\/exams\/[^\/]+\/start$/, key: "exam-start", maxCount: 5, windowSeconds: 15 * 60 },
+  { method: "POST", pattern: /^\/api\/exam-attempts\/[^\/]+\/submit$/, key: "exam-submit", maxCount: 5, windowSeconds: 15 * 60 },
+  { method: "POST", pattern: /^\/api\/exam-attempts\/[^\/]+\/leave$/, key: "exam-leave", maxCount: 10, windowSeconds: 15 * 60 },
+
+  // Checkout & Payments & Refunds
+  { method: "POST", pattern: /^\/api\/checkout\/create-intent$/, key: "checkout-create-intent", maxCount: 10, windowSeconds: 15 * 60 },
+  { method: "POST", pattern: /^\/api\/checkout\/mock\/process$/, key: "checkout-mock-process", maxCount: 5, windowSeconds: 15 * 60 },
+  { method: "POST", pattern: /^\/api\/coupons\/validate$/, key: "coupon-validate", maxCount: 10, windowSeconds: 10 * 60 },
+  { method: "POST", pattern: /^\/api\/refunds$/, key: "refunds", maxCount: 5, windowSeconds: 60 * 60 },
+
+  // Comments, Reviews & Profile
+  { method: "POST", pattern: /^\/api\/comments\/[^\/]+\/reports$/, key: "comments-report", maxCount: 10, windowSeconds: 15 * 60 },
+  { method: "POST", pattern: /^\/api\/comments$/, key: "comments-create", maxCount: 5, windowSeconds: 10 * 60 },
+  { method: "POST", pattern: /^\/api\/reviews\/[^\/]+\/like$/, key: "reviews-like", maxCount: 20, windowSeconds: 5 * 60 },
+  { method: "POST", pattern: /^\/api\/reviews\/[^\/]+\/report$/, key: "reviews-report", maxCount: 10, windowSeconds: 15 * 60 },
+  { method: "POST", pattern: /^\/api\/reviews$/, key: "reviews-create", maxCount: 3, windowSeconds: 60 * 60 },
+  { method: "POST", pattern: /^\/api\/profile\/avatar$/, key: "profile-avatar", maxCount: 5, windowSeconds: 15 * 60 },
 ];
 
 export const DEFAULT_RATE_LIMIT: Omit<RateLimitRule, "pathPrefix" | "key"> = {
@@ -88,10 +102,22 @@ export const DEFAULT_RATE_LIMIT: Omit<RateLimitRule, "pathPrefix" | "key"> = {
  * login succeeds. */
 export const LOGIN_FAILURE_RATE_LIMIT = { maxCount: 5, windowSeconds: 15 * 60 };
 
-export function resolveRateLimitRule(pathname: string): RateLimitRule {
-  const matched = RATE_LIMIT_RULES.find((rule) => pathname.startsWith(rule.pathPrefix));
-  if (matched) return matched;
-  return { pathPrefix: "/api", key: "api", ...DEFAULT_RATE_LIMIT };
+export function resolveRateLimitRule(pathname: string, method?: string): RateLimitRule | null {
+  const reqMethod = method?.toUpperCase();
+  const matched = RATE_LIMIT_RULES.find((rule) => {
+    if (rule.method && reqMethod && rule.method.toUpperCase() !== reqMethod) {
+      return false;
+    }
+    if (rule.pattern) {
+      return rule.pattern.test(pathname);
+    }
+    if (rule.pathPrefix) {
+      return pathname.startsWith(rule.pathPrefix);
+    }
+    return false;
+  });
+
+  return matched ?? null;
 }
 
 export async function checkRateLimit(

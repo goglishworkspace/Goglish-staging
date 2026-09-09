@@ -169,3 +169,26 @@ export function useDeleteCourse() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-courses"] }),
   });
 }
+
+export type StudentCourseProgress = {
+  course_id: string;
+  course_title: string;
+  course_slug?: string | null;
+  cover_image_url?: string | null;
+  description?: string | null;
+  total_lessons: number;
+  completed_lessons: number;
+  completion_percent: number;
+  watch_time_seconds: number;
+};
+
+export function useMyCourses() {
+  return useQuery({
+    queryKey: ["student", "my-courses"],
+    queryFn: async () => {
+      const { data } = await api.get<ApiSuccess<StudentCourseProgress[]>>("/api/student/my-courses");
+      return data.data;
+    },
+    staleTime: 60 * 1000,
+  });
+}

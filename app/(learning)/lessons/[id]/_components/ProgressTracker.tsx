@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useLessonProgress, useSaveLessonProgress } from "@/lib/api/queries/lesson-progress";
 import { useVideoTime } from "./VideoTimeContext";
 
-const SAVE_INTERVAL_MS = 20_000;
+const SAVE_INTERVAL_MS = 60_000;
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -21,6 +21,15 @@ export function ProgressTracker({ lessonId }: { lessonId: string }) {
   const saveProgress = useSaveLessonProgress(lessonId);
   const { currentTime } = useVideoTime();
   const currentTimeRef = useRef(currentTime);
+  const lastSavedTimeRef = useRef<number>(0);
+  const initialSyncedRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialSyncedRef.current && progress?.progress_seconds) {
+      lastSavedTimeRef.current = progress.progress_seconds;
+      initialSyncedRef.current = true;
+    }
+  }, [progress?.progress_seconds]);
 
   useEffect(() => {
     currentTimeRef.current = currentTime;
@@ -28,8 +37,10 @@ export function ProgressTracker({ lessonId }: { lessonId: string }) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (currentTimeRef.current > 0) {
-        saveProgress.mutate({ progress_seconds: Math.round(currentTimeRef.current) });
+      const current = currentTimeRef.current;
+      if (current > 0 && Math.abs(current - lastSavedTimeRef.current) >= 15) {
+        lastSavedTimeRef.current = current;
+        saveProgress.mutate({ progress_seconds: Math.round(current) });
       }
     }, SAVE_INTERVAL_MS);
     return () => clearInterval(interval);

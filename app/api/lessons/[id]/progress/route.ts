@@ -59,11 +59,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (error) return apiError("تعذر تحديث التقدم", null, 400);
 
-  // Watching a lesson counts as real study activity for the Daily Streak
-  // (Section 10), and may itself cross a badge threshold (e.g.
-  // "lessons_completed").
+  // Watching a lesson counts as real study activity for the Daily Streak (Section 10).
+  // Idempotent per UTC day inside the DB function.
   await recordDailyActivity(user.id);
-  await runGamificationHooks(user.id);
+
+  // Gamification badges: only evaluate when a lesson is marked completed.
+  // Routine playback heartbeats do not award XP or badges, avoiding 5 DB queries per tick.
+  if (parsed.data.status === "completed") {
+    await runGamificationHooks(user.id);
+  }
 
   return apiSuccess(data, "تم تحديث التقدم");
 }
