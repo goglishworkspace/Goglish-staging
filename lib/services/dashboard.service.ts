@@ -1,15 +1,22 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getCourseProgressForStudent, type CourseProgress } from "@/lib/services/course-progress.service";
+import {
+  getCourseProgressForStudent,
+  type CourseProgress,
+  type CourseEntitlementWithCourse,
+} from "@/lib/services/course-progress.service";
 import { getAllLevels, resolveLevelForXp } from "@/lib/services/level.service";
 
-async function getEntitledCourseIds(supabase: SupabaseClient, userId: string): Promise<string[]> {
+async function getEntitledCourses(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<CourseEntitlementWithCourse[]> {
   const { data } = await supabase
     .from("course_entitlements")
-    .select("course_id")
+    .select("course_id, courses(title, slug, cover_image_url, description)")
     .eq("user_id", userId)
     .is("revoked_at", null);
-  return (data ?? []).map((row) => row.course_id as string);
+  return (data ?? []) as unknown as CourseEntitlementWithCourse[];
 }
 
 async function getModuleIdsForCourses(supabase: SupabaseClient, courseIds: string[]): Promise<string[]> {
@@ -218,16 +225,17 @@ export type StudentDashboard = {
 };
 
 export async function getStudentDashboard(supabase: SupabaseClient, userId: string): Promise<StudentDashboard> {
-  const [profile, courseIds] = await Promise.all([
+  const [profile, entitlements] = await Promise.all([
     supabase
       .from("profiles")
       .select("xp_total, coins_total, current_streak_days, longest_streak_days, grade")
       .eq("id", userId)
       .single()
       .then((r) => r.data),
-    getEntitledCourseIds(supabase, userId),
+    getEntitledCourses(supabase, userId),
   ]);
 
+  const courseIds = entitlements.map((row) => row.course_id);
   const moduleIds = await getModuleIdsForCourses(supabase, courseIds);
   const levels = await getAllLevels();
 
@@ -252,7 +260,7 @@ export async function getStudentDashboard(supabase: SupabaseClient, userId: stri
     getUpcomingExam(supabase, userId, courseIds),
     getDailyProgress(supabase, userId),
     getWeeklyProgress(supabase, userId),
-    getCourseProgressForStudent(supabase, userId),
+    getCourseProgressForStudent(supabase, userId, entitlements),
     getMyRank(supabase, userId),
     supabase
       .from("user_badges")

@@ -64,37 +64,120 @@ async function computeCourseProgress(
   };
 }
 
+export type CourseEntitlementWithCourse = {
+  course_id: string;
+  courses: {
+    title: string;
+    slug?: string | null;
+    cover_image_url?: string | null;
+    description?: string | null;
+  } | null;
+};
+
 /** Progress across every course the student is entitled to (Section 13
  * Parent Portal). Extracted from parent-portal.service.ts so review
  * eligibility (Section 20) can reuse the exact same completion math. */
 export async function getCourseProgressForStudent(
   supabase: SupabaseClient,
   studentId: string,
+  prefetchedEntitlements?: CourseEntitlementWithCourse[],
 ): Promise<CourseProgress[]> {
-  const { data: entitlements } = await supabase
-    .from("course_entitlements")
-    .select("course_id, courses(title, slug, cover_image_url, description)")
-    .eq("user_id", studentId)
-    .is("revoked_at", null);
+  let entitlements = prefetchedEntitlements;
+  if (!entitlements) {
+    const { data } = await supabase
+      .from("course_entitlements")
+      .select("course_id, courses(title, slug, cover_image_url, description)")
+      .eq("user_id", studentId)
+      .is("revoked_at", null);
+    entitlements = (data ?? []) as unknown as CourseEntitlementWithCourse[];
+  }
 
-  if (!entitlements?.length) return [];
+  if (!entitlements.length) return [];
 
-  return Promise.all(
-    entitlements.map((entitlement) => {
-      const course = entitlement.courses as unknown as {
-        title: string;
-        slug?: string | null;
-        cover_image_url?: string | null;
-        description?: string | null;
-      } | null;
-      return computeCourseProgress(supabase, studentId, entitlement.course_id as string, {
-        title: course?.title ?? "",
-        slug: course?.slug ?? null,
-        cover_image_url: course?.cover_image_url ?? null,
-        description: course?.description ?? null,
-      });
-    }),
-  );
+  const courseIds = entitlements.map((e) => e.course_id);
+
+  // 1. Batch fetch all modules for all courses in a single query
+  const { data: modules } = await supabase
+    .from("modules")
+    .select("id, course_id")
+    .in("course_id", courseIds);
+
+  const moduleToCourse = new Map<string, string>();
+  for (const m of modules ?? []) {
+    moduleToCourse.set(m.id as string, m.course_id as string);
+  }
+  const moduleIds = Array.from(moduleToCourse.keys());
+
+  // 2. Batch fetch all published lessons for all modules in a single query
+  const courseLessonCount = new Map<string, number>();
+  const lessonToCourse = new Map<string, string>();
+
+  if (moduleIds.length) {
+    const { data: lessons } = await supabase
+      .from("lessons")
+      .select("id, module_id")
+      .in("module_id", moduleIds)
+      .eq("status", "published")
+      .is("deleted_at", null);
+
+    for (const l of lessons ?? []) {
+      const courseId = moduleToCourse.get(l.module_id as string);
+      if (courseId) {
+        courseLessonCount.set(courseId, (courseLessonCount.get(courseId) ?? 0) + 1);
+        lessonToCourse.set(l.id as string, courseId);
+      }
+    }
+  }
+
+  // 3. Batch fetch progress for all relevant lessons in a single query
+  const courseCompletedLessons = new Map<string, number>();
+  const courseWatchTime = new Map<string, number>();
+  const lessonIds = Array.from(lessonToCourse.keys());
+
+  if (lessonIds.length) {
+    const { data: progress } = await supabase
+      .from("lesson_progress")
+      .select("lesson_id, status, progress_seconds")
+      .eq("user_id", studentId)
+      .in("lesson_id", lessonIds);
+
+    for (const p of progress ?? []) {
+      const courseId = lessonToCourse.get(p.lesson_id as string);
+      if (courseId) {
+        if (p.status === "completed") {
+          courseCompletedLessons.set(courseId, (courseCompletedLessons.get(courseId) ?? 0) + 1);
+        }
+        courseWatchTime.set(
+          courseId,
+          (courseWatchTime.get(courseId) ?? 0) + ((p.progress_seconds as number) || 0),
+        );
+      }
+    }
+  }
+
+  // Assemble the result for each entitlement in original order
+  return entitlements.map((entitlement) => {
+    const courseId = entitlement.course_id;
+    const course = entitlement.courses;
+    const totalLessons = courseLessonCount.get(courseId) ?? 0;
+    const completedLessons = courseCompletedLessons.get(courseId) ?? 0;
+    const watchTimeSeconds = courseWatchTime.get(courseId) ?? 0;
+    const completionPercent = totalLessons
+      ? Math.round((completedLessons / totalLessons) * 100)
+      : 0;
+
+    return {
+      course_id: courseId,
+      course_title: course?.title ?? "",
+      course_slug: course?.slug ?? null,
+      cover_image_url: course?.cover_image_url ?? null,
+      description: course?.description ?? null,
+      total_lessons: totalLessons,
+      completed_lessons: completedLessons,
+      completion_percent: completionPercent,
+      watch_time_seconds: watchTimeSeconds,
+    };
+  });
 }
 
 /** Section 20 review eligibility - "بعد إنهاء الكورس": every published
