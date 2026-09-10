@@ -62,7 +62,7 @@ export function WatermarkOverlay({
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div
         aria-hidden
-        className="absolute inset-[-25%] opacity-[0.1]"
+        className="absolute inset-[-25%] opacity-[0.04]"
         style={{
           backgroundImage: tiledBackground,
           backgroundRepeat: "repeat",
@@ -70,13 +70,13 @@ export function WatermarkOverlay({
         }}
       />
       <div
-        className="absolute flex flex-col items-end gap-0.5 rounded bg-black/40 px-2 py-1 text-[10px] text-white/80 backdrop-blur-sm transition-[top,left] duration-1000 sm:text-xs"
+        className="absolute flex flex-col items-end gap-0.5 rounded-md bg-black/20 border border-white/10 px-1.5 py-0.5 text-[9px] text-white/50 backdrop-blur-[1px] transition-[top,left] duration-1000 sm:text-[11px] select-none shadow-sm"
         style={{ top: `${position.top}%`, left: `${position.left}%` }}
       >
-        <span className="font-semibold">{watermark.logoText}</span>
-        {watermark.studentName && <span>{watermark.studentName}</span>}
+        <span className="font-semibold text-white/60">{watermark.logoText}</span>
+        {watermark.studentName && <span className="text-white/50">{watermark.studentName}</span>}
         {(watermark.phone || watermark.nationalId) && (
-          <span dir="ltr">{watermark.phone || watermark.nationalId}</span>
+          <span dir="ltr" className="text-white/50">{watermark.phone || watermark.nationalId}</span>
         )}
       </div>
     </div>

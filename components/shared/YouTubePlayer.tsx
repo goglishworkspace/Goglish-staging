@@ -13,6 +13,8 @@ import {
   Volume2,
   Volume1,
   VolumeX,
+  Captions,
+  CaptionsOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +61,11 @@ type YouTubePlayerInstance = {
   unMute: () => void;
   isMuted: () => boolean;
   destroy: () => void;
+  loadModule?: (moduleName: string) => void;
+  unloadModule?: (moduleName: string) => void;
+  setOption?: (module: string, option: string, value: unknown) => void;
+  getOption?: (module: string, option: string) => unknown;
+  getOptions?: (module?: string) => unknown;
 };
 
 const PLAYING_STATE = 1;
@@ -162,25 +169,80 @@ export function YouTubePlayer({
     }
   }, [seekTarget, ready]);
 
-  // Whether to hide the control bar until :hover, checked at runtime instead
-  // of via a Tailwind pointer-fine:/CSS media-query variant - combining
-  // hover+pointer in one @media rule trips a parser bug in this project's
-  // CSS minifier that breaks the entire stylesheet. Also can't key this off
-  // viewport width (e.g. md:) - a phone in landscape or fullscreen easily
-  // reports a "desktop-width" viewport while still being a touchscreen with
-  // no hover at all, which would hide the bar with no way to reveal it.
-  const [hoverCapable, setHoverCapable] = useState(false);
+  // Control bar visibility and auto-hide logic
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHideTimer = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+  };
+
+  const showControlsWithTimeout = (timeoutMs = 3000) => {
+    clearHideTimer();
+    setControlsVisible(true);
+    if (playing) {
+      hideTimerRef.current = setTimeout(() => {
+        setControlsVisible(false);
+      }, timeoutMs);
+    }
+  };
+
+  const isControlsVisible = !playing || controlsVisible || showSpeedMenu || showQualityMenu;
+
   useEffect(() => {
-    const query = window.matchMedia("(hover: hover) and (pointer: fine)");
-    // Genuinely can't know this during SSR (no window) or compute it via a
-    // useState lazy initializer either - that runs during the client's first
-    // render too, but its result gets discarded in favor of the server's
-    // value to keep hydration consistent, so this has to be corrected here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
-    setHoverCapable(query.matches);
-    const onChange = (e: MediaQueryListEvent) => setHoverCapable(e.matches);
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
+    return () => clearHideTimer();
+  }, []);
+
+  const toggleCaptions = () => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    if (captionsEnabled) {
+      try {
+        player.unloadModule?.("captions");
+        player.unloadModule?.("cc");
+        player.setOption?.("captions", "track", {});
+        player.setOption?.("cc", "track", {});
+      } catch {
+        // ignore
+      }
+      setCaptionsEnabled(false);
+    } else {
+      try {
+        player.loadModule?.("captions");
+        player.loadModule?.("cc");
+        player.setOption?.("captions", "reload", true);
+        player.setOption?.("captions", "track", { languageCode: "ar" });
+      } catch {
+        // ignore
+      }
+      setCaptionsEnabled(true);
+    }
+  };
+
+  // Click outside player immediately hides control bar and closes open menus
+  useEffect(() => {
+    const handleDocumentPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (wrapperRef.current && target && !wrapperRef.current.contains(target)) {
+        setShowSpeedMenu(false);
+        setShowQualityMenu(false);
+        clearHideTimer();
+        setControlsVisible(false);
+        if (wrapperRef.current.contains(document.activeElement)) {
+          (document.activeElement as HTMLElement)?.blur();
+        }
+      }
+    };
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown);
+    };
   }, []);
 
   useEffect(() => {
@@ -204,13 +266,30 @@ export function YouTubePlayer({
             setDuration(event.target.getDuration());
             setVolume(event.target.getVolume());
             setMuted(event.target.isMuted());
+            try {
+              const track = event.target.getOption?.("captions", "track");
+              if (track && typeof track === "object" && Object.keys(track as object).length > 0) {
+                setCaptionsEnabled(true);
+              }
+            } catch {
+              // ignore
+            }
           },
           onStateChange: (event) => {
-            setPlaying(event.data === PLAYING_STATE);
+            const isPlaying = event.data === PLAYING_STATE;
+            setPlaying(isPlaying);
             const player = playerRef.current;
             if (!player) return;
             const currentQ = player.getPlaybackQuality?.();
             if (currentQ && currentQ !== "unknown") setQuality(currentQ);
+            if (isPlaying) {
+              clearHideTimer();
+              hideTimerRef.current = setTimeout(() => {
+                setControlsVisible(false);
+              }, 3000);
+            } else {
+              clearHideTimer();
+            }
           },
         },
       });
@@ -399,6 +478,16 @@ export function YouTubePlayer({
   return (
     <div
       ref={wrapperRef}
+      onPointerMove={() => showControlsWithTimeout(3000)}
+      onPointerDown={() => showControlsWithTimeout(3000)}
+      onMouseLeave={() => {
+        if (playing && !showSpeedMenu && !showQualityMenu) {
+          clearHideTimer();
+          hideTimerRef.current = setTimeout(() => {
+            setControlsVisible(false);
+          }, 1000);
+        }
+      }}
       className={cn(
         "group relative w-full overflow-hidden bg-black transition-all",
         isCurrentlyFullscreen
@@ -422,12 +511,20 @@ export function YouTubePlayer({
         onClick={() => {
           setShowQualityMenu(false);
           setShowSpeedMenu(false);
-          togglePlay();
+          if (!isControlsVisible) {
+            showControlsWithTimeout(3000);
+          } else {
+            togglePlay();
+            showControlsWithTimeout(3000);
+          }
         }}
         disabled={!ready}
         tabIndex={-1}
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full cursor-pointer"
+        className={cn(
+          "absolute inset-0 h-full w-full",
+          isControlsVisible ? "cursor-pointer" : "cursor-none",
+        )}
       />
 
       {/* Overlaid children (e.g. WatermarkOverlay) - stays visible in normal & fullscreen */}
@@ -435,8 +532,10 @@ export function YouTubePlayer({
 
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1.5 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2.5 sm:p-3 transition-opacity",
-          hoverCapable ? "opacity-0 group-hover:opacity-100 focus-within:opacity-100" : "opacity-100",
+          "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1.5 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2.5 sm:p-3 transition-all duration-300",
+          isControlsVisible
+            ? "opacity-100 pointer-events-auto translate-y-0"
+            : "opacity-0 pointer-events-none translate-y-2",
         )}
       >
         <input
@@ -513,6 +612,30 @@ export function YouTubePlayer({
           </div>
 
           <div className="relative flex items-center gap-1 sm:gap-2.5 shrink-0">
+            {/* زر إزالة / تشغيل الترجمة */}
+            <button
+              type="button"
+              onClick={toggleCaptions}
+              disabled={!ready}
+              className={cn(
+                "flex items-center gap-1 px-1.5 py-1 text-[11px] sm:text-caption rounded hover:bg-white/10 transition-colors shrink-0",
+                captionsEnabled
+                  ? "text-primary font-medium"
+                  : "text-white/70 hover:text-white",
+              )}
+              aria-label={captionsEnabled ? "إزالة الترجمة" : "تشغيل الترجمة"}
+              title={captionsEnabled ? "إزالة الترجمة" : "تشغيل الترجمة"}
+            >
+              {captionsEnabled ? (
+                <Captions className="size-3.5 sm:size-4 shrink-0" />
+              ) : (
+                <CaptionsOff className="size-3.5 sm:size-4 shrink-0" />
+              )}
+              <span className="hidden sm:inline font-medium">
+                {captionsEnabled ? "إزالة الترجمة" : "ترجمة"}
+              </span>
+            </button>
+
             <div className="relative" data-player-menu>
               <button
                 type="button"
