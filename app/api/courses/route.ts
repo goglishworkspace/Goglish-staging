@@ -12,7 +12,27 @@ export async function GET(request: NextRequest) {
   const teacherId = request.nextUrl.searchParams.get("teacher_id");
   const gradeId = request.nextUrl.searchParams.get("grade_id");
   const limitParam = request.nextUrl.searchParams.get("limit");
+  const mine = request.nextUrl.searchParams.get("mine") === "true";
   const supabase = await createClient();
+
+  let effectiveTeacherId = teacherId;
+
+  // Teacher dashboard optimization: resolve teacher from session directly,
+  // allowing the dashboard to fetch courses in parallel with /api/teachers/me.
+  if (mine) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return apiError("لازم تسجل دخول الأول", null, 401);
+    const { data: teacher, error: teacherError } = await supabase
+      .from("teachers")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (teacherError) return apiError("تعذر جلب حساب المدرس", null, 500);
+    if (!teacher) return apiSuccess([], "تم جلب الكورسات");
+    effectiveTeacherId = teacher.id;
+  }
 
   // RLS already scopes rows to "published, or mine to manage" - no extra
   // status filter needed here, it would only ever narrow what RLS allows.
@@ -26,14 +46,14 @@ export async function GET(request: NextRequest) {
   query = query.is("deleted_at", null).order("created_at", { ascending: false });
   if (subjectId) query = query.eq("subject_id", subjectId);
 
-  if (teacherId) {
+  if (effectiveTeacherId) {
     // course_teachers is a plain M:M junction (not a sibling-FK situation),
     // but resolved as a separate lookup + .in() rather than an embed-filter
     // to match this codebase's established two-step-join style.
     const { data: assignments, error: assignmentsError } = await supabase
       .from("course_teachers")
       .select("course_id")
-      .eq("teacher_id", teacherId);
+      .eq("teacher_id", effectiveTeacherId);
     if (assignmentsError) return apiError("تعذر جلب كورسات المدرس", null, 500);
     const courseIds = (assignments ?? []).map((row) => row.course_id);
     if (!courseIds.length) return apiSuccess([], "تم جلب الكورسات");
@@ -45,6 +65,19 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return apiError("تعذر جلب الكورسات", null, 500);
+
+  // When fetching a teacher's own dashboard courses (mine=true), access check
+  // is irrelevant (teachers manage their own courses) and teacher roster is
+  // redundant (the teacher is already known). Skipping both saves 4 DB round-trips
+  // without altering student/public catalog behavior.
+  if (mine) {
+    const teacherCourses = (data ?? []).map((course) => ({
+      ...course,
+      teachers: [],
+      has_access: true,
+    }));
+    return apiSuccess(teacherCourses, "تم جلب الكورسات");
+  }
 
   const withTeachers = await attachTeachers(supabase, data ?? []);
   const withAccess = await attachCourseAccess(supabase, withTeachers);

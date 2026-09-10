@@ -23,7 +23,7 @@ import { ContentStatusBadge } from "@/components/shared/ContentStatusBadge";
 import { useMyTeacher } from "@/lib/api/queries/teacher";
 import { useSubjects } from "@/lib/api/queries/subjects";
 import {
-  useCoursesByTeacher,
+  useMyTeacherCourses,
   useCreateCourse,
   useSubmitCourseForReview,
   useUpdateCourse,
@@ -38,9 +38,9 @@ function apiErrorMessage(err: unknown, fallback: string) {
 }
 
 function CreateCourseDialog({ teacherId }: { teacherId: string }) {
-  const { data: subjects } = useSubjects();
-  const createCourse = useCreateCourse();
   const [open, setOpen] = useState(false);
+  const { data: subjects } = useSubjects(undefined, { enabled: open });
+  const createCourse = useCreateCourse();
   const [title, setTitle] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [priceEgp, setPriceEgp] = useState("");
@@ -314,7 +314,7 @@ function EditCourseDialog({ course }: { course: Course }) {
 
 export default function TeacherContentOverviewPage() {
   const { data: teacher, isLoading: teacherLoading } = useMyTeacher();
-  const { data: courses, isLoading: coursesLoading } = useCoursesByTeacher(teacher?.id ?? "");
+  const { data: courses, isLoading: coursesLoading } = useMyTeacherCourses();
   const submitCourse = useSubmitCourseForReview();
 
   const onSubmitCourse = (courseId: string) => {

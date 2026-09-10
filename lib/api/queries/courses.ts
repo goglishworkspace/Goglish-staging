@@ -93,6 +93,21 @@ export function useCoursesByTeacher(teacherId: string) {
   });
 }
 
+/** Fetches the authenticated teacher's own courses for the dashboard directly from session,
+ * eliminating the client-side waterfall of waiting for /api/teachers/me first. */
+export function useMyTeacherCourses() {
+  return useQuery({
+    queryKey: ["courses", "teacher", "mine"],
+    queryFn: async () => {
+      const { data } = await api.get<ApiSuccess<Course[]>>("/api/courses", {
+        params: { mine: "true" },
+      });
+      return data.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCourse(id: string) {
   return useQuery({
     queryKey: ["course", id],

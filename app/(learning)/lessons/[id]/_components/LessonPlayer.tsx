@@ -58,8 +58,9 @@ export function LessonPlayer({ playback }: { playback: LessonPlaybackResult }) {
           title="فيديو الدرس"
           onTimeUpdate={setCurrentTime}
           seekTarget={seekTarget}
-        />
-        <WatermarkOverlay watermark={playback.watermark} />
+        >
+          <WatermarkOverlay watermark={playback.watermark} />
+        </YouTubePlayer>
       </div>
     </VideoDeterrents>
   );

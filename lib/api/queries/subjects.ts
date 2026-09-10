@@ -16,7 +16,7 @@ export type CreateSubjectInput = {
   primary_teacher_id?: string;
 };
 
-export function useSubjects(gradeId?: string) {
+export function useSubjects(gradeId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["subjects", gradeId ?? "all"],
     queryFn: async () => {
@@ -26,6 +26,7 @@ export function useSubjects(gradeId?: string) {
       return data.data;
     },
     staleTime: 5 * 60 * 1000,
+    enabled: options?.enabled ?? true,
   });
 }
 
