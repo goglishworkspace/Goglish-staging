@@ -53,14 +53,11 @@ async function getLatestLesson(supabase: SupabaseClient, moduleIds: string[]) {
 
 async function getUpcomingQuiz(supabase: SupabaseClient, userId: string, moduleIds: string[]) {
   if (!moduleIds.length) return null;
-  const { data: lessons } = await supabase.from("lessons").select("id").in("module_id", moduleIds);
-  const lessonIds = (lessons ?? []).map((l) => l.id as string);
-  if (!lessonIds.length) return null;
 
   const { data: quizzes } = await supabase
     .from("quizzes")
-    .select("id, title, lesson_id")
-    .in("lesson_id", lessonIds)
+    .select("id, title, lesson_id, lessons!inner(module_id)")
+    .in("lessons.module_id", moduleIds)
     .eq("kind", "quiz")
     .eq("status", "published");
   if (!quizzes?.length) return null;
@@ -73,7 +70,14 @@ async function getUpcomingQuiz(supabase: SupabaseClient, userId: string, moduleI
     .in("quiz_id", quizzes.map((q) => q.id));
   const attemptedIds = new Set((attempted ?? []).map((a) => a.quiz_id as string));
 
-  return quizzes.find((quiz) => !attemptedIds.has(quiz.id)) ?? null;
+  const firstUnattempted = quizzes.find((quiz) => !attemptedIds.has(quiz.id));
+  if (!firstUnattempted) return null;
+
+  return {
+    id: firstUnattempted.id,
+    title: firstUnattempted.title,
+    lesson_id: firstUnattempted.lesson_id,
+  };
 }
 
 async function getUpcomingExam(supabase: SupabaseClient, userId: string, courseIds: string[]) {
@@ -182,17 +186,11 @@ async function getMyRank(supabase: SupabaseClient, userId: string) {
 
 async function getRecommendedCourses(supabase: SupabaseClient, grade: string | null, ownedCourseIds: string[]) {
   if (!grade) return [];
-  const { data: gradeRow } = await supabase.from("grades").select("id").eq("slug", grade).maybeSingle();
-  if (!gradeRow) return [];
-
-  const { data: subjects } = await supabase.from("subjects").select("id").eq("grade_id", gradeRow.id);
-  const subjectIds = (subjects ?? []).map((s) => s.id as string);
-  if (!subjectIds.length) return [];
 
   let query = supabase
     .from("courses")
-    .select("id, title, slug, cover_image_url")
-    .in("subject_id", subjectIds)
+    .select("id, title, slug, cover_image_url, subjects!inner(grades!inner(slug))")
+    .eq("subjects.grades.slug", grade)
     .eq("status", "published")
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -200,7 +198,12 @@ async function getRecommendedCourses(supabase: SupabaseClient, grade: string | n
   if (ownedCourseIds.length) query = query.not("id", "in", `(${ownedCourseIds.join(",")})`);
 
   const { data } = await query;
-  return data ?? [];
+  return (data ?? []).map((c) => ({
+    id: c.id,
+    title: c.title,
+    slug: c.slug,
+    cover_image_url: c.cover_image_url,
+  }));
 }
 
 export type StudentDashboard = {
@@ -225,7 +228,7 @@ export type StudentDashboard = {
 };
 
 export async function getStudentDashboard(supabase: SupabaseClient, userId: string): Promise<StudentDashboard> {
-  const [profile, entitlements] = await Promise.all([
+  const [profile, entitlements, levels] = await Promise.all([
     supabase
       .from("profiles")
       .select("xp_total, coins_total, current_streak_days, longest_streak_days, grade")
@@ -233,11 +236,11 @@ export async function getStudentDashboard(supabase: SupabaseClient, userId: stri
       .single()
       .then((r) => r.data),
     getEntitledCourses(supabase, userId),
+    getAllLevels(),
   ]);
 
   const courseIds = entitlements.map((row) => row.course_id);
   const moduleIds = await getModuleIdsForCourses(supabase, courseIds);
-  const levels = await getAllLevels();
 
   const [
     continue_learning,
