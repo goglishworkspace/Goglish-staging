@@ -10,12 +10,13 @@ import { DashboardTopbar } from "@/components/dashboard/DashboardTopbar";
  * "lacks the student role", only on "has a higher-priority role". */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [userResult, ownDashboard] = await Promise.all([
+    supabase.auth.getUser(),
+    resolveOwnDashboardPath(supabase),
+  ]);
+  const user = userResult.data?.user;
   if (!user) redirect("/login");
 
-  const ownDashboard = await resolveOwnDashboardPath(supabase);
   if (ownDashboard !== "/student/dashboard") redirect(ownDashboard);
 
   return (

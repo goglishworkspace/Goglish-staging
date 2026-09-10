@@ -11,12 +11,13 @@ import { userHasAnyRole, resolveOwnDashboardPath } from "./require-role";
  * flash of the other role's content. */
 export async function requireRoleOrRedirect(roles: string[]) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [userResult, allowed] = await Promise.all([
+    supabase.auth.getUser(),
+    userHasAnyRole(supabase, roles),
+  ]);
+  const user = userResult.data?.user;
   if (!user) redirect("/login");
 
-  const allowed = await userHasAnyRole(supabase, roles);
   if (!allowed) redirect(await resolveOwnDashboardPath(supabase));
 
   return { supabase, user };
