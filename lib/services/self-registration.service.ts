@@ -8,6 +8,7 @@ export type SelfRegistrationMetadata = {
   first_name?: string;
   last_name?: string;
   phone?: string;
+  parent_phone?: string;
   national_id?: string;
   grade?: "grade1" | "grade2" | "grade3";
   child_national_id?: string;
@@ -50,6 +51,7 @@ export async function completeSelfRegistrationIfNeeded(
     p_grade: metadata.role_type === "student" ? (metadata.grade ?? null) : null,
     p_child_national_id: metadata.role_type === "parent" ? (metadata.child_national_id ?? null) : null,
     p_child_phone: metadata.role_type === "parent" ? (metadata.child_phone ?? null) : null,
+    p_parent_phone: metadata.role_type === "student" ? (metadata.parent_phone ?? null) : null,
   });
 
   if (error) throw error;

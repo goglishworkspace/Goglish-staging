@@ -6,6 +6,7 @@ import { CoursesSection } from "@/components/landing/CoursesSection";
 import { FeaturedVideoSection } from "@/components/landing/FeaturedVideoSection";
 import { HonorBoardSection } from "@/components/landing/HonorBoardSection";
 import { CtaSection } from "@/components/landing/CtaSection";
+import { WhatsAppFloatingButton } from "@/components/landing/WhatsAppFloatingButton";
 import { JsonLd } from "@/components/shared/JsonLd";
 import { createClient } from "@/lib/supabase/server";
 import { resolveOwnDashboardPath } from "@/lib/auth/require-role";
@@ -78,6 +79,7 @@ export default async function HomePage() {
           <CtaSection isLoggedIn={!!user} />
         </div>
       </section>
+      <WhatsAppFloatingButton />
     </>
   );
 }

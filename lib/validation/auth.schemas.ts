@@ -63,6 +63,7 @@ export const selfRegisterSchema = z
     email: z.email("إيميل غير صالح"),
     phone: z.string().trim().min(10, "رقم الهاتف لازم يكون 10 أرقام على الأقل"),
     password,
+    parent_phone: z.string().trim().optional(),
     grade: gradeSchema.optional(),
     child_phone: z.string().trim().optional(),
     national_id: z.string().trim().optional(),
@@ -72,6 +73,11 @@ export const selfRegisterSchema = z
     if (data.role_type === "student") {
       if (!data.grade) {
         ctx.addIssue({ code: "custom", path: ["grade"], message: "اختر الصف الدراسي" });
+      }
+      if (!data.parent_phone || data.parent_phone.trim().length < 10) {
+        ctx.addIssue({ code: "custom", path: ["parent_phone"], message: "رقم هاتف ولي الأمر مطلوب (10 أرقام على الأقل)" });
+      } else if (data.parent_phone.trim() === data.phone?.trim()) {
+        ctx.addIssue({ code: "custom", path: ["parent_phone"], message: "رقم هاتف ولي الأمر لا يمكن أن يكون مطابقاً لرقم هاتفك" });
       }
       if (data.national_id) {
         const check = validateNationalId(data.national_id);
@@ -105,6 +111,7 @@ export const syncRegisterMetadataSchema = z.object({
   last_name: z.string().trim().min(1, "الاسم الأخير مطلوب"),
   email: z.email("إيميل غير صالح"),
   phone: z.string().trim().optional(),
+  parent_phone: z.string().trim().optional(),
   national_id: z.string().trim().optional(),
   grade: gradeSchema.optional(),
   child_national_id: z.string().trim().optional(),
@@ -159,20 +166,29 @@ export const completeProfileSchema = z
       .string()
       .trim()
       .regex(/^(\+20|0)?1[0125]\d{8}$/, "يرجى إدخال رقم هاتف مصري صحيح (مثال: 01012345678)"),
+    parent_phone: z.string().trim().optional(),
     grade: gradeSchema.optional(),
     child_phone: z.string().trim().optional(),
   })
-  .refine(
-    (data) => {
-      if (data.role_type === "student") {
-        return Boolean(data.grade);
+  .superRefine((data, ctx) => {
+    if (data.role_type === "student") {
+      if (!data.grade) {
+        ctx.addIssue({ code: "custom", path: ["grade"], message: "يرجى اختيار الصف الدراسي" });
       }
-      return true;
-    },
-    {
-      message: "يرجى اختيار الصف الدراسي",
-      path: ["grade"],
-    },
-  );
+      if (!data.parent_phone || !/^(\+20|0)?1[0125]\d{8}$/.test(data.parent_phone.trim())) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["parent_phone"],
+          message: "يرجى إدخال رقم هاتف ولي أمر مصري صحيح (مثال: 01012345678)",
+        });
+      } else if (data.parent_phone.trim() === data.phone?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["parent_phone"],
+          message: "رقم هاتف ولي الأمر لا يمكن أن يكون مطابقاً لرقم هاتفك",
+        });
+      }
+    }
+  });
 
 export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;

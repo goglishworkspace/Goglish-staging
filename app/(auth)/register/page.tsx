@@ -80,6 +80,7 @@ function RegisterPageContent() {
     resolver: zodResolver(selfRegisterSchema),
     defaultValues: {
       phone: "",
+      parent_phone: "",
       first_name: "",
       last_name: "",
       email: "",
@@ -107,6 +108,7 @@ function RegisterPageContent() {
           first_name: values.first_name,
           last_name: values.last_name,
           phone: values.phone || undefined,
+          parent_phone: values.role_type === "student" ? (values.parent_phone || undefined) : undefined,
           national_id: values.role_type === "student" ? values.national_id : undefined,
           grade: values.role_type === "student" ? values.grade : undefined,
           child_national_id: values.role_type === "parent" ? values.child_national_id : undefined,
@@ -132,6 +134,7 @@ function RegisterPageContent() {
         first_name: values.first_name,
         last_name: values.last_name,
         phone: values.phone || undefined,
+        parent_phone: values.role_type === "student" ? (values.parent_phone || undefined) : undefined,
         national_id: values.role_type === "student" ? values.national_id : undefined,
         grade: values.role_type === "student" ? values.grade : undefined,
         child_national_id: values.role_type === "parent" ? values.child_national_id : undefined,
@@ -206,7 +209,11 @@ function RegisterPageContent() {
             </Field>
           </div>
 
-          <Field label="رقم الهاتف / الواتساب" htmlFor="phone" error={errors.phone?.message}>
+          <Field
+            label={roleType === "student" ? "رقم هاتف الطالب / الواتساب" : "رقم الهاتف / الواتساب"}
+            htmlFor="phone"
+            error={errors.phone?.message}
+          >
             <Input
               id="phone"
               type="tel"
@@ -216,6 +223,23 @@ function RegisterPageContent() {
               {...register("phone")}
             />
           </Field>
+
+          {roleType === "student" && (
+            <Field
+              label="رقم هاتف ولي الأمر (إلزامي)"
+              htmlFor="parent_phone"
+              error={errors.parent_phone?.message}
+            >
+              <Input
+                id="parent_phone"
+                type="tel"
+                dir="ltr"
+                placeholder="01012345678"
+                aria-invalid={!!errors.parent_phone}
+                {...register("parent_phone")}
+              />
+            </Field>
+          )}
 
           <Field label="البريد الإلكتروني" htmlFor="email" error={errors.email?.message}>
             <Input

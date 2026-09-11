@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     return apiError("بيانات غير صالحة", zodErrorsToApiErrors(parsed.error), 422);
   }
 
-  const { role_type, first_name, last_name, phone, grade, child_phone } = parsed.data;
+  const { role_type, first_name, last_name, phone, parent_phone, grade, child_phone } = parsed.data;
   const admin = createAdminClient();
 
   // 1. Update profiles table - try direct update first as the profile stub already exists
@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
       first_name,
       last_name,
       phone,
+      parent_phone: role_type === "student" ? (parent_phone || null) : null,
       role_type,
       grade: role_type === "student" ? (grade ?? null) : null,
       self_registration_completed_at: new Date().toISOString(),
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
       p_phone: phone,
       p_grade: role_type === "student" ? (grade ?? null) : null,
       p_child_phone: role_type === "parent" ? (child_phone || null) : null,
+      p_parent_phone: role_type === "student" ? (parent_phone || null) : null,
     });
 
     if (rpcError) {
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
       first_name,
       last_name,
       phone,
+      parent_phone: role_type === "student" ? parent_phone : undefined,
       role_type,
       grade: role_type === "student" ? grade : undefined,
     },

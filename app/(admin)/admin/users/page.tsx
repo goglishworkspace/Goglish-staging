@@ -70,6 +70,13 @@ export default function AdminUsersPage() {
       "الاسم",
       "الإيميل",
       "رقم التليفون",
+      "هاتف ولي الأمر",
+      "عدد الكورسات",
+      "آخر فتح للكورس",
+      "آخر اختبار",
+      "درجة آخر اختبار",
+      "آخر تدريب",
+      "درجة آخر تدريب",
       "الصف الدراسي",
       "الأدوار",
       "الحالة",
@@ -82,6 +89,13 @@ export default function AdminUsersPage() {
       `"${(u.first_name ?? "") + " " + (u.last_name ?? "")}"`,
       u.email,
       `"${u.phone ?? "-"}"`,
+      `"${u.parent_phone ?? "-"}"`,
+      u.courses_count ?? 0,
+      u.last_course_opened_at ? formatDateTimeEn(u.last_course_opened_at) : "لم يفتح بعد",
+      u.latest_exam ? `"${u.latest_exam.title} (${u.latest_exam.passed ? "ناجح" : "راسب"})"` : "-",
+      u.latest_exam ? `"${u.latest_exam.score_percent}%"` : "-",
+      u.latest_quiz ? `"${u.latest_quiz.title} (${u.latest_quiz.passed ? "ناجح" : "راسب"})"` : "-",
+      u.latest_quiz ? `"${u.latest_quiz.score_percent}%"` : "-",
       u.grade ?? "-",
       `"${u.roles.join(", ")}"`,
       u.deleted_at ? "محذوف" : u.banned ? "محظور" : "نشط",
@@ -172,7 +186,11 @@ export default function AdminUsersPage() {
                 <TableHead>كود الطالب</TableHead>
                 <TableHead>الاسم</TableHead>
                 <TableHead>الإيميل</TableHead>
-                <TableHead>رقم التليفون</TableHead>
+                <TableHead>هاتف الطالب</TableHead>
+                <TableHead>هاتف ولي الأمر</TableHead>
+                <TableHead className="text-center">الكورسات</TableHead>
+                <TableHead>آخر فتح للكورس</TableHead>
+                <TableHead>مستوى الطالب (آخر درجات)</TableHead>
                 <TableHead>الأدوار</TableHead>
                 <TableHead>آخر تسجيل دخول</TableHead>
                 <TableHead>الحالة</TableHead>
@@ -201,6 +219,51 @@ export default function AdminUsersPage() {
                   <TableCell className="text-muted-foreground text-small">{user.email}</TableCell>
                   <TableCell dir="ltr" className="text-end text-muted-foreground text-small">
                     {user.phone ?? "-"}
+                  </TableCell>
+                  <TableCell dir="ltr" className="text-end text-muted-foreground text-small">
+                    {user.parent_phone ?? "-"}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={user.courses_count > 0 ? "secondary" : "outline"} className="font-mono">
+                      {user.courses_count ?? 0}
+                    </Badge>
+                  </TableCell>
+                  <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
+                    {user.last_course_opened_at ? (
+                      formatDateTimeEn(user.last_course_opened_at)
+                    ) : (
+                      <span className="text-muted-foreground/60">لم يفتح بعد</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {user.latest_exam || user.latest_quiz ? (
+                      <div className="flex flex-col gap-1 text-caption min-w-[110px]">
+                        {user.latest_exam && (
+                          <div className="flex items-center justify-between gap-1.5" title={user.latest_exam.title}>
+                            <span className="text-muted-foreground truncate max-w-[70px]">اختبار:</span>
+                            <Badge
+                              variant={user.latest_exam.passed ? "default" : "destructive"}
+                              className="px-1.5 py-0 text-caption font-mono"
+                            >
+                              {user.latest_exam.score_percent}%
+                            </Badge>
+                          </div>
+                        )}
+                        {user.latest_quiz && (
+                          <div className="flex items-center justify-between gap-1.5" title={user.latest_quiz.title}>
+                            <span className="text-muted-foreground truncate max-w-[70px]">تدريب:</span>
+                            <Badge
+                              variant={user.latest_quiz.passed ? "secondary" : "outline"}
+                              className="px-1.5 py-0 text-caption font-mono"
+                            >
+                              {user.latest_quiz.score_percent}%
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/60 text-caption">لا توجد محاولات</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">

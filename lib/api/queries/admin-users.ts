@@ -2,6 +2,41 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/axios";
 import type { ApiSuccess } from "@/lib/api/response";
 
+export type AdminLatestExam = {
+  id: string;
+  title: string;
+  course_title?: string | null;
+  score_percent: number;
+  passed: boolean;
+  submitted_at: string;
+};
+
+export type AdminLatestQuiz = {
+  id: string;
+  title: string;
+  lesson_title?: string | null;
+  score_percent: number;
+  passed: boolean;
+  submitted_at: string;
+};
+
+export type AdminUserAcademicActivity = {
+  latest_exam: AdminLatestExam | null;
+  latest_quiz: AdminLatestQuiz | null;
+  average_exam_score: number | null;
+  average_quiz_score: number | null;
+  total_exams_taken: number;
+  total_quizzes_taken: number;
+  exam_attempts: AdminLatestExam[];
+  quiz_attempts: AdminLatestQuiz[];
+  gamification: {
+    xp_total: number;
+    coins_total: number;
+    current_streak_days: number;
+    level: number;
+  };
+};
+
 export type AdminUserSummary = {
   id: string;
   user_code: number | null;
@@ -9,6 +44,7 @@ export type AdminUserSummary = {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  parent_phone: string | null;
   grade: string | null;
   admin_notes: string | null;
   deleted_at: string | null;
@@ -19,6 +55,10 @@ export type AdminUserSummary = {
   teacher_status: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+  courses_count: number;
+  last_course_opened_at: string | null;
+  latest_exam?: { title: string; score_percent: number; passed: boolean; submitted_at: string } | null;
+  latest_quiz?: { title: string; score_percent: number; passed: boolean; submitted_at: string } | null;
 };
 
 export type AdminUserDevice = {
@@ -43,12 +83,14 @@ export type AdminUserCourse = {
   title: string;
   source: string;
   granted_at: string;
+  last_opened_at: string | null;
 };
 
 export type AdminUserDetail = AdminUserSummary & {
   devices: AdminUserDevice[];
   login_history: AdminUserLoginEvent[];
   courses: AdminUserCourse[];
+  academic_activity?: AdminUserAcademicActivity | null;
 };
 
 export function useAdminUsers(q?: string) {
@@ -92,6 +134,7 @@ export function useAdminUpdateUserProfile() {
     first_name?: string;
     last_name?: string;
     phone?: string;
+    parent_phone?: string | null;
     grade?: string | null;
     admin_notes?: string;
     password?: string;

@@ -82,6 +82,7 @@ export function CompleteProfileForm({
       first_name: initialFirstName,
       last_name: initialLastName,
       phone: initialPhone,
+      parent_phone: "",
       grade: "grade1",
       child_phone: "",
     },
@@ -174,7 +175,7 @@ export function CompleteProfileForm({
           </div>
 
           <Field
-            label="رقم الهاتف / الواتساب"
+            label={currentRole === "student" ? "رقم هاتف الطالب / الواتساب" : "رقم الهاتف / الواتساب"}
             htmlFor="phone"
             error={errors.phone?.message}
           >
@@ -188,6 +189,24 @@ export function CompleteProfileForm({
             />
             <p className="text-caption text-muted-foreground">رقم هاتف مصري من 11 رقم (مثال: 01012345678)</p>
           </Field>
+
+          {currentRole === "student" && (
+            <Field
+              label="رقم هاتف ولي الأمر (إلزامي)"
+              htmlFor="parent_phone"
+              error={errors.parent_phone?.message}
+            >
+              <Input
+                id="parent_phone"
+                type="tel"
+                dir="ltr"
+                placeholder="01012345678"
+                aria-invalid={!!errors.parent_phone}
+                {...register("parent_phone")}
+              />
+              <p className="text-caption text-muted-foreground">رقم هاتف مصري من 11 رقم لولي الأمر</p>
+            </Field>
+          )}
 
           {currentRole === "student" ? (
             <Field label="الصف الدراسي" htmlFor="grade" error={errors.grade?.message}>

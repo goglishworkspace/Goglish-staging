@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   User,
@@ -13,6 +13,11 @@ import {
   RotateCcw,
   Plus,
   Laptop,
+  GraduationCap,
+  Award,
+  TrendingUp,
+  Trophy,
+  Flame,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +99,7 @@ function UserManageDialogInner({
   summaryUser: AdminUserSummary;
   viewerIsSuperAdmin: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState<"profile" | "devices" | "courses" | "notes">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "activity" | "courses" | "devices" | "notes">("profile");
 
   const { data: userDetail, isLoading } = useAdminUserDetail(summaryUser.id);
   const user = userDetail ?? summaryUser;
@@ -119,12 +124,24 @@ function UserManageDialogInner({
   const [firstName, setFirstName] = useState(summaryUser.first_name ?? "");
   const [lastName, setLastName] = useState(summaryUser.last_name ?? "");
   const [phone, setPhone] = useState(summaryUser.phone ?? "");
+  const [parentPhone, setParentPhone] = useState(summaryUser.parent_phone ?? "");
   const [grade, setGrade] = useState(summaryUser.grade ?? "");
   const [newPassword, setNewPassword] = useState("");
   const [adminNotes, setAdminNotes] = useState(summaryUser.admin_notes ?? "");
   const [selectedCourseToGrant, setSelectedCourseToGrant] = useState("");
   const [roleToAssign, setRoleToAssign] = useState("");
   const [teacherDisplayName, setTeacherDisplayName] = useState("");
+
+  useEffect(() => {
+    if (userDetail) {
+      if (userDetail.first_name !== undefined) setFirstName(userDetail.first_name ?? "");
+      if (userDetail.last_name !== undefined) setLastName(userDetail.last_name ?? "");
+      if (userDetail.phone !== undefined) setPhone(userDetail.phone ?? "");
+      if (userDetail.parent_phone !== undefined) setParentPhone(userDetail.parent_phone ?? "");
+      if (userDetail.grade !== undefined) setGrade(userDetail.grade ?? "");
+      if (userDetail.admin_notes !== undefined) setAdminNotes(userDetail.admin_notes ?? "");
+    }
+  }, [userDetail]);
 
   const assignableRoles = viewerIsSuperAdmin
     ? ASSIGNABLE_ROLES
@@ -139,6 +156,7 @@ function UserManageDialogInner({
           first_name: firstName.trim() || undefined,
           last_name: lastName.trim() || undefined,
           phone: phone.trim() || "",
+          parent_phone: parentPhone.trim() || null,
           grade: grade || null,
           ...(newPassword.trim().length >= 6 ? { password: newPassword.trim() } : {}),
         },
@@ -202,7 +220,13 @@ function UserManageDialogInner({
           {user.phone && (
             <>
               <span>•</span>
-              <span dir="ltr">{user.phone}</span>
+              <span>هاتف: <span dir="ltr">{user.phone}</span></span>
+            </>
+          )}
+          {user.parent_phone && (
+            <>
+              <span>•</span>
+              <span>ولي الأمر: <span dir="ltr">{user.parent_phone}</span></span>
             </>
           )}
           {user.last_sign_in_at && (
@@ -215,12 +239,12 @@ function UserManageDialogInner({
       </DialogHeader>
 
       {/* Tab Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border gap-2 pb-3 pt-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 border-b border-border gap-2 pb-3 pt-2">
         <button
           type="button"
           onClick={() => setActiveTab("profile")}
           className={cn(
-            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
+            "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
             activeTab === "profile"
               ? "bg-primary text-primary-foreground border-primary shadow-sm"
               : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
@@ -231,35 +255,48 @@ function UserManageDialogInner({
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("devices")}
+          onClick={() => setActiveTab("activity")}
           className={cn(
-            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
-            activeTab === "devices"
+            "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
+            activeTab === "activity"
               ? "bg-primary text-primary-foreground border-primary shadow-sm"
               : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
           )}
         >
-          <Smartphone className="size-4" />
-          الأجهزة والدخول ({userDetail?.devices?.length ?? 0})
+          <GraduationCap className="size-4" />
+          نشاط ومستوى الطالب
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("courses")}
           className={cn(
-            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
+            "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
             activeTab === "courses"
               ? "bg-primary text-primary-foreground border-primary shadow-sm"
               : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
           )}
         >
           <BookOpen className="size-4" />
-          الكورسات والوصول ({userDetail?.courses?.length ?? 0})
+          الكورسات ({userDetail?.courses?.length ?? 0})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("devices")}
+          className={cn(
+            "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
+            activeTab === "devices"
+              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+              : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
+          )}
+        >
+          <Smartphone className="size-4" />
+          الأجهزة ({userDetail?.devices?.length ?? 0})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("notes")}
           className={cn(
-            "flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
+            "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-small font-medium transition-colors border",
             activeTab === "notes"
               ? "bg-primary text-primary-foreground border-primary shadow-sm"
               : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted border-transparent",
@@ -300,22 +337,27 @@ function UserManageDialogInner({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
-                <Label htmlFor="u-phone">رقم الهاتف / الواتساب</Label>
+                <Label htmlFor="u-phone">رقم هاتف الطالب / الواتساب</Label>
                 <Input id="u-phone" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" />
               </div>
               <div className="flex flex-col gap-1">
-                <Label htmlFor="u-grade">الصف الدراسي</Label>
-                <Select value={grade} onValueChange={(val) => setGrade(val as string)}>
-                  <SelectTrigger id="u-grade">
-                    <SelectValue placeholder="اختر الصف" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="grade1">أولى ثانوي</SelectItem>
-                    <SelectItem value="grade2">ثانية ثانوي</SelectItem>
-                    <SelectItem value="grade3">ثالثة ثانوي</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="u-parent-phone">رقم هاتف ولي الأمر</Label>
+                <Input id="u-parent-phone" dir="ltr" value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} placeholder="01xxxxxxxxx" />
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="u-grade">الصف الدراسي</Label>
+              <Select value={grade} onValueChange={(val) => setGrade(val as string)}>
+                <SelectTrigger id="u-grade">
+                  <SelectValue placeholder="اختر الصف" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="grade1">أولى ثانوي</SelectItem>
+                  <SelectItem value="grade2">ثانية ثانوي</SelectItem>
+                  <SelectItem value="grade3">ثالثة ثانوي</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -515,6 +557,277 @@ function UserManageDialogInner({
         </div>
       )}
 
+      {/* Tab: Academic Activity & Level */}
+      {activeTab === "activity" && (
+        <div className="flex flex-col gap-5 pt-2">
+          {isLoading && <Skeleton className="h-64 w-full" />}
+
+          {!isLoading && (
+            <>
+              {/* Top Summary Cards: Parent Overview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Latest Exam Card */}
+                <div className="rounded-xl border border-border p-3.5 bg-muted/20 flex flex-col justify-between gap-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-caption text-muted-foreground font-medium flex items-center gap-1">
+                      <GraduationCap className="size-3.5 text-primary" />
+                      آخر اختبار تم تقديمه
+                    </span>
+                    {userDetail?.academic_activity?.latest_exam && (
+                      <Badge
+                        variant={userDetail.academic_activity.latest_exam.passed ? "default" : "destructive"}
+                        className="text-caption"
+                      >
+                        {userDetail.academic_activity.latest_exam.passed ? "ناجح" : "راسب"}
+                      </Badge>
+                    )}
+                  </div>
+                  {userDetail?.academic_activity?.latest_exam ? (
+                    <div>
+                      <div className="text-h3 font-bold text-foreground font-mono">
+                        {userDetail.academic_activity.latest_exam.score_percent}%
+                      </div>
+                      <p className="text-small font-medium truncate mt-0.5" title={userDetail.academic_activity.latest_exam.title}>
+                        {userDetail.academic_activity.latest_exam.title}
+                      </p>
+                      {userDetail.academic_activity.latest_exam.course_title && (
+                        <p className="text-caption text-muted-foreground truncate">
+                          كورس: {userDetail.academic_activity.latest_exam.course_title}
+                        </p>
+                      )}
+                      <p dir="ltr" className="text-caption text-muted-foreground text-start mt-1">
+                        {formatDateTimeEn(userDetail.academic_activity.latest_exam.submitted_at)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="py-3 text-center text-caption text-muted-foreground/70">
+                      لم يقم بحل أي اختبارات بعد
+                    </div>
+                  )}
+                </div>
+
+                {/* Latest Quiz Card */}
+                <div className="rounded-xl border border-border p-3.5 bg-muted/20 flex flex-col justify-between gap-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-caption text-muted-foreground font-medium flex items-center gap-1">
+                      <Award className="size-3.5 text-secondary" />
+                      آخر تدريب / كويز
+                    </span>
+                    {userDetail?.academic_activity?.latest_quiz && (
+                      <Badge
+                        variant={userDetail.academic_activity.latest_quiz.passed ? "secondary" : "outline"}
+                        className="text-caption"
+                      >
+                        {userDetail.academic_activity.latest_quiz.passed ? "اجتاز" : "لم يجتز"}
+                      </Badge>
+                    )}
+                  </div>
+                  {userDetail?.academic_activity?.latest_quiz ? (
+                    <div>
+                      <div className="text-h3 font-bold text-foreground font-mono">
+                        {userDetail.academic_activity.latest_quiz.score_percent}%
+                      </div>
+                      <p className="text-small font-medium truncate mt-0.5" title={userDetail.academic_activity.latest_quiz.title}>
+                        {userDetail.academic_activity.latest_quiz.title}
+                      </p>
+                      {userDetail.academic_activity.latest_quiz.lesson_title && (
+                        <p className="text-caption text-muted-foreground truncate">
+                          درس: {userDetail.academic_activity.latest_quiz.lesson_title}
+                        </p>
+                      )}
+                      <p dir="ltr" className="text-caption text-muted-foreground text-start mt-1">
+                        {formatDateTimeEn(userDetail.academic_activity.latest_quiz.submitted_at)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="py-3 text-center text-caption text-muted-foreground/70">
+                      لم يقم بحل أي تدريبات بعد
+                    </div>
+                  )}
+                </div>
+
+                {/* Overall Academic Evaluation */}
+                <div className="rounded-xl border border-border p-3.5 bg-muted/20 flex flex-col justify-between gap-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-caption text-muted-foreground font-medium flex items-center gap-1">
+                      <TrendingUp className="size-3.5 text-amber-500" />
+                      المستوى والتقييم العام
+                    </span>
+                  </div>
+                  {(() => {
+                    const avgE = userDetail?.academic_activity?.average_exam_score;
+                    const avgQ = userDetail?.academic_activity?.average_quiz_score;
+                    const combined =
+                      avgE !== null && avgE !== undefined && avgQ !== null && avgQ !== undefined
+                        ? Math.round((avgE + avgQ) / 2)
+                        : avgE !== null && avgE !== undefined
+                        ? avgE
+                        : avgQ !== null && avgQ !== undefined
+                        ? avgQ
+                        : null;
+
+                    if (combined === null) {
+                      return (
+                        <div className="py-3 text-center text-caption text-muted-foreground/70">
+                          لا توجد بيانات كافية للتقييم
+                        </div>
+                      );
+                    }
+
+                    const label =
+                      combined >= 90
+                        ? "ممتاز 🌟"
+                        : combined >= 80
+                        ? "جيد جداً 👏"
+                        : combined >= 65
+                        ? "جيد 👍"
+                        : "يحتاج متابعة ⚠️";
+
+                    return (
+                      <div>
+                        <div className="text-h3 font-bold text-foreground font-mono">
+                          {combined}%
+                        </div>
+                        <p className="text-small font-semibold text-primary mt-0.5">
+                          {label}
+                        </p>
+                        <div className="text-caption text-muted-foreground mt-1 flex flex-col gap-0.5">
+                          <span>متوسط الاختبارات: {avgE !== null && avgE !== undefined ? `${avgE}%` : "-"}</span>
+                          <span>متوسط التدريبات: {avgQ !== null && avgQ !== undefined ? `${avgQ}%` : "-"}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Engagement & Gamification Card */}
+                <div className="rounded-xl border border-border p-3.5 bg-muted/20 flex flex-col justify-between gap-2 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-caption text-muted-foreground font-medium flex items-center gap-1">
+                      <Trophy className="size-3.5 text-yellow-500" />
+                      الالتزام والحضور
+                    </span>
+                    <Badge variant="outline" className="font-mono text-caption">
+                      Level {userDetail?.academic_activity?.gamification?.level ?? 1}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1.5 mt-1">
+                    <div className="flex items-center justify-between text-small">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Flame className="size-4 text-orange-500" /> الحضور المتواصل:
+                      </span>
+                      <span className="font-bold text-foreground">
+                        {userDetail?.academic_activity?.gamification?.current_streak_days ?? 0} يوم
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-small">
+                      <span className="text-muted-foreground">إجمالي النقاط (XP):</span>
+                      <span className="font-mono font-semibold text-foreground">
+                        {userDetail?.academic_activity?.gamification?.xp_total?.toLocaleString() ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-small">
+                      <span className="text-muted-foreground">إجمالي الاختبارات:</span>
+                      <span className="font-semibold text-foreground">
+                        {userDetail?.academic_activity?.total_exams_taken ?? 0} اختبار
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detailed Exams History */}
+              <div className="rounded-xl border border-border overflow-hidden mt-1">
+                <div className="bg-muted/40 px-4 py-2.5 border-b border-border flex items-center justify-between">
+                  <h4 className="font-semibold text-small flex items-center gap-2">
+                    <GraduationCap className="size-4 text-primary" />
+                    سجل الاختبارات المنجزة ({userDetail?.academic_activity?.exam_attempts?.length ?? 0})
+                  </h4>
+                </div>
+                {(!userDetail?.academic_activity?.exam_attempts || userDetail.academic_activity.exam_attempts.length === 0) ? (
+                  <p className="py-6 text-center text-small text-muted-foreground">لم يقم الطالب بتسليم أي اختبارات بعد.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>اسم الاختبار</TableHead>
+                        <TableHead>الكورس</TableHead>
+                        <TableHead className="text-center">الدرجة</TableHead>
+                        <TableHead className="text-center">النتيجة</TableHead>
+                        <TableHead>تاريخ ووقت الحل</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {userDetail.academic_activity.exam_attempts.map((attempt) => (
+                        <TableRow key={attempt.id}>
+                          <TableCell className="font-medium text-small">{attempt.title}</TableCell>
+                          <TableCell className="text-muted-foreground text-small">{attempt.course_title ?? "-"}</TableCell>
+                          <TableCell className="text-center font-mono font-bold text-small">
+                            {attempt.score_percent}%
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={attempt.passed ? "default" : "destructive"} className="text-caption">
+                              {attempt.passed ? "ناجح" : "راسب"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
+                            {formatDateTimeEn(attempt.submitted_at)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+
+              {/* Detailed Quizzes History */}
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="bg-muted/40 px-4 py-2.5 border-b border-border flex items-center justify-between">
+                  <h4 className="font-semibold text-small flex items-center gap-2">
+                    <Award className="size-4 text-secondary" />
+                    سجل التدريبات والكويزات المنجزة ({userDetail?.academic_activity?.quiz_attempts?.length ?? 0})
+                  </h4>
+                </div>
+                {(!userDetail?.academic_activity?.quiz_attempts || userDetail.academic_activity.quiz_attempts.length === 0) ? (
+                  <p className="py-6 text-center text-small text-muted-foreground">لم يقم الطالب بتسليم أي تدريبات بعد.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>اسم التدريب / الكويز</TableHead>
+                        <TableHead>الدرس</TableHead>
+                        <TableHead className="text-center">الدرجة</TableHead>
+                        <TableHead className="text-center">النتيجة</TableHead>
+                        <TableHead>تاريخ ووقت الحل</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {userDetail.academic_activity.quiz_attempts.map((attempt) => (
+                        <TableRow key={attempt.id}>
+                          <TableCell className="font-medium text-small">{attempt.title}</TableCell>
+                          <TableCell className="text-muted-foreground text-small">{attempt.lesson_title ?? "-"}</TableCell>
+                          <TableCell className="text-center font-mono font-bold text-small">
+                            {attempt.score_percent}%
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={attempt.passed ? "secondary" : "outline"} className="text-caption">
+                              {attempt.passed ? "اجتاز" : "لم يجتز"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
+                            {formatDateTimeEn(attempt.submitted_at)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Tab 2: Devices & Login History */}
       {activeTab === "devices" && (
         <div className="flex flex-col gap-5 pt-2">
@@ -661,6 +974,7 @@ function UserManageDialogInner({
                       <TableHead>الكورس</TableHead>
                       <TableHead>نوع الاشتراك / المصدر</TableHead>
                       <TableHead>تاريخ المنح</TableHead>
+                      <TableHead>آخر فتح للكورس</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -674,6 +988,13 @@ function UserManageDialogInner({
                         </TableCell>
                         <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
                           {formatDateTimeEn(course.granted_at)}
+                        </TableCell>
+                        <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
+                          {course.last_opened_at ? (
+                            formatDateTimeEn(course.last_opened_at)
+                          ) : (
+                            <span className="text-muted-foreground/60">لم يبدأ بعد</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

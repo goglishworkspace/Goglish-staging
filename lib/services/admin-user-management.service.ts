@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "./audit-log.service";
 import { completeSelfRegistrationIfNeeded, type SelfRegistrationMetadata } from "./self-registration.service";
+import { getLevelForXp } from "./level.service";
 
 const PERMANENT_BAN_DURATION = "876000h"; // ~100 years, GoTrue has no "forever" literal
 const HARD_DELETE_AFTER_HOURS = 1;
@@ -53,6 +54,41 @@ export class TeacherHasCoursesError extends Error {
 
 export class UserNotDeletedError extends Error {}
 
+export type AdminLatestExam = {
+  id: string;
+  title: string;
+  course_title?: string | null;
+  score_percent: number;
+  passed: boolean;
+  submitted_at: string;
+};
+
+export type AdminLatestQuiz = {
+  id: string;
+  title: string;
+  lesson_title?: string | null;
+  score_percent: number;
+  passed: boolean;
+  submitted_at: string;
+};
+
+export type AdminUserAcademicActivity = {
+  latest_exam: AdminLatestExam | null;
+  latest_quiz: AdminLatestQuiz | null;
+  average_exam_score: number | null;
+  average_quiz_score: number | null;
+  total_exams_taken: number;
+  total_quizzes_taken: number;
+  exam_attempts: AdminLatestExam[];
+  quiz_attempts: AdminLatestQuiz[];
+  gamification: {
+    xp_total: number;
+    coins_total: number;
+    current_streak_days: number;
+    level: number;
+  };
+};
+
 export type AdminUserSummary = {
   id: string;
   user_code: number | null;
@@ -60,6 +96,7 @@ export type AdminUserSummary = {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  parent_phone: string | null;
   grade: string | null;
   admin_notes: string | null;
   deleted_at: string | null;
@@ -68,6 +105,10 @@ export type AdminUserSummary = {
   roles: string[];
   is_teacher: boolean;
   teacher_status: string | null;
+  courses_count: number;
+  last_course_opened_at: string | null;
+  latest_exam?: { title: string; score_percent: number; passed: boolean; submitted_at: string } | null;
+  latest_quiz?: { title: string; score_percent: number; passed: boolean; submitted_at: string } | null;
   created_at: string;
   last_sign_in_at: string | null;
 };
@@ -94,12 +135,14 @@ export type AdminUserCourse = {
   title: string;
   source: string;
   granted_at: string;
+  last_opened_at: string | null;
 };
 
 export type AdminUserDetail = AdminUserSummary & {
   devices: AdminUserDevice[];
   login_history: AdminUserLoginEvent[];
   courses: AdminUserCourse[];
+  academic_activity?: AdminUserAcademicActivity | null;
 };
 
 /** Only a super_admin can grant/revoke these two roles - a plain admin can
@@ -117,11 +160,17 @@ async function fetchProfilesSafely(ids: string[]) {
   const admin = createAdminClient();
   try {
     return await selectInChunks(ids, (batch) =>
-      admin.from("profiles").select("id, user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned").in("id", batch),
+      admin
+        .from("profiles")
+        .select("id, user_code, first_name, last_name, phone, parent_phone, grade, admin_notes, deleted_at, comment_banned")
+        .in("id", batch),
     );
   } catch {
     const fallbackRows = await selectInChunks(ids, (batch) =>
-      admin.from("profiles").select("id, first_name, last_name, phone, grade, deleted_at, comment_banned").in("id", batch),
+      admin
+        .from("profiles")
+        .select("id, first_name, last_name, phone, parent_phone, grade, deleted_at, comment_banned")
+        .in("id", batch),
     );
     return fallbackRows.map((r) => ({
       ...r,
@@ -137,10 +186,40 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
   if (error) throw error;
 
   const ids = authList.users.map((u) => u.id);
-  const [profiles, roleRows, teacherRows] = await Promise.all([
+  const [
+    profiles,
+    roleRows,
+    teacherRows,
+    entitlementsRows,
+    progressRows,
+    latestExamRows,
+    latestQuizRows,
+  ] = await Promise.all([
     fetchProfilesSafely(ids),
     selectInChunks(ids, (batch) => admin.from("role_user").select("user_id, roles(name)").in("user_id", batch)).catch(() => []),
     selectInChunks(ids, (batch) => admin.from("teachers").select("user_id, status").in("user_id", batch)).catch(() => []),
+    selectInChunks(ids, (batch) =>
+      admin.from("course_entitlements").select("user_id").in("user_id", batch).is("revoked_at", null),
+    ).catch(() => []),
+    selectInChunks(ids, (batch) =>
+      admin.from("lesson_progress").select("user_id, last_watched_at").in("user_id", batch),
+    ).catch(() => []),
+    selectInChunks(ids, (batch) =>
+      admin
+        .from("student_exam_attempts")
+        .select("user_id, score_percent, passed, submitted_at, exams(title)")
+        .in("user_id", batch)
+        .eq("status", "submitted")
+        .order("submitted_at", { ascending: false }),
+    ).catch(() => []),
+    selectInChunks(ids, (batch) =>
+      admin
+        .from("student_quiz_attempts")
+        .select("user_id, score_percent, passed, submitted_at, quizzes(title)")
+        .in("user_id", batch)
+        .eq("status", "submitted")
+        .order("submitted_at", { ascending: false }),
+    ).catch(() => []),
   ]);
 
   const profileById = new Map(profiles.map((p) => [p.id, p]));
@@ -154,6 +233,54 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
   }
   const teacherByUser = new Map(teacherRows.map((t) => [t.user_id, t.status as string]));
 
+  const coursesCountByUser = new Map<string, number>();
+  for (const ent of entitlementsRows as Array<{ user_id: string }>) {
+    coursesCountByUser.set(ent.user_id, (coursesCountByUser.get(ent.user_id) ?? 0) + 1);
+  }
+
+  const lastOpenedByUser = new Map<string, string>();
+  for (const prog of progressRows as Array<{ user_id: string; last_watched_at: string }>) {
+    if (!prog.last_watched_at) continue;
+    const existing = lastOpenedByUser.get(prog.user_id);
+    if (!existing || new Date(prog.last_watched_at) > new Date(existing)) {
+      lastOpenedByUser.set(prog.user_id, prog.last_watched_at);
+    }
+  }
+
+  const latestExamByUser = new Map<string, { title: string; score_percent: number; passed: boolean; submitted_at: string }>();
+  for (const row of latestExamRows as Array<{
+    user_id: string;
+    score_percent: number | null;
+    passed: boolean | null;
+    submitted_at: string | null;
+    exams: unknown;
+  }>) {
+    if (!row.submitted_at || latestExamByUser.has(row.user_id)) continue;
+    latestExamByUser.set(row.user_id, {
+      title: (row.exams as { title: string } | null)?.title ?? "اختبار",
+      score_percent: Math.round(Number(row.score_percent) || 0),
+      passed: !!row.passed,
+      submitted_at: row.submitted_at,
+    });
+  }
+
+  const latestQuizByUser = new Map<string, { title: string; score_percent: number; passed: boolean; submitted_at: string }>();
+  for (const row of latestQuizRows as Array<{
+    user_id: string;
+    score_percent: number | null;
+    passed: boolean | null;
+    submitted_at: string | null;
+    quizzes: unknown;
+  }>) {
+    if (!row.submitted_at || latestQuizByUser.has(row.user_id)) continue;
+    latestQuizByUser.set(row.user_id, {
+      title: (row.quizzes as { title: string } | null)?.title ?? "تدريب",
+      score_percent: Math.round(Number(row.score_percent) || 0),
+      passed: !!row.passed,
+      submitted_at: row.submitted_at,
+    });
+  }
+
   let result: AdminUserSummary[] = authList.users.map((u) => {
     const profile = profileById.get(u.id);
     return {
@@ -163,6 +290,7 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
       first_name: profile?.first_name ?? null,
       last_name: profile?.last_name ?? null,
       phone: profile?.phone ?? null,
+      parent_phone: (profile as { parent_phone?: string | null })?.parent_phone ?? null,
       grade: profile?.grade ?? null,
       admin_notes: (profile as { admin_notes?: string | null })?.admin_notes ?? null,
       deleted_at: profile?.deleted_at ?? null,
@@ -171,6 +299,10 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
       roles: rolesByUser.get(u.id) ?? [],
       is_teacher: teacherByUser.has(u.id),
       teacher_status: teacherByUser.get(u.id) ?? null,
+      courses_count: coursesCountByUser.get(u.id) ?? 0,
+      last_course_opened_at: lastOpenedByUser.get(u.id) ?? null,
+      latest_exam: latestExamByUser.get(u.id) ?? null,
+      latest_quiz: latestQuizByUser.get(u.id) ?? null,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,
     };
@@ -182,6 +314,7 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
       (u) =>
         u.email.toLowerCase().includes(q) ||
         (u.phone && u.phone.includes(q)) ||
+        (u.parent_phone && u.parent_phone.includes(q)) ||
         (u.user_code && `gog-${u.user_code}`.includes(q)) ||
         (u.user_code && String(u.user_code).includes(q)) ||
         `${u.first_name ?? ""} ${u.last_name ?? ""}`.toLowerCase().includes(q),
@@ -202,6 +335,7 @@ export async function getUserDetail(targetUserId: string): Promise<AdminUserDeta
     first_name: string | null;
     last_name: string | null;
     phone: string | null;
+    parent_phone?: string | null;
     grade: string | null;
     admin_notes?: string | null;
     deleted_at: string | null;
@@ -211,41 +345,68 @@ export async function getUserDetail(targetUserId: string): Promise<AdminUserDeta
   try {
     const { data } = await admin
       .from("profiles")
-      .select("user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned")
+      .select("user_code, first_name, last_name, phone, parent_phone, grade, admin_notes, deleted_at, comment_banned")
       .eq("id", targetUserId)
       .maybeSingle();
     profile = data;
   } catch {
     const { data } = await admin
       .from("profiles")
-      .select("first_name, last_name, phone, grade, deleted_at, comment_banned")
+      .select("first_name, last_name, phone, parent_phone, grade, deleted_at, comment_banned")
       .eq("id", targetUserId)
       .maybeSingle();
     profile = data ? { ...data, user_code: null, admin_notes: null } : null;
   }
 
-  const [{ data: roleRows }, { data: teacher }, { data: devices }, { data: auditLogs }, { data: entitlements }] =
-    await Promise.all([
-      admin.from("role_user").select("roles(name)").eq("user_id", targetUserId),
-      admin.from("teachers").select("status").eq("user_id", targetUserId).maybeSingle(),
-      admin
-        .from("devices")
-        .select("id, device_fingerprint, user_agent, ip_address, is_active, last_active_at, created_at")
-        .eq("user_id", targetUserId)
-        .order("last_active_at", { ascending: false }),
-      admin
-        .from("audit_logs")
-        .select("id, created_at, metadata")
-        .eq("actor_user_id", targetUserId)
-        .eq("action", "user.login")
-        .order("created_at", { ascending: false })
-        .limit(25),
-      admin
-        .from("course_entitlements")
-        .select("course_id, source, granted_at, courses(title)")
-        .eq("user_id", targetUserId)
-        .is("revoked_at", null),
-    ]);
+  const [
+    { data: roleRows },
+    { data: teacher },
+    { data: devices },
+    { data: auditLogs },
+    { data: entitlements },
+    { data: examAttemptsData },
+    { data: quizAttemptsData },
+    { data: gamificationData },
+  ] = await Promise.all([
+    admin.from("role_user").select("roles(name)").eq("user_id", targetUserId),
+    admin.from("teachers").select("status").eq("user_id", targetUserId).maybeSingle(),
+    admin
+      .from("devices")
+      .select("id, device_fingerprint, user_agent, ip_address, is_active, last_active_at, created_at")
+      .eq("user_id", targetUserId)
+      .order("last_active_at", { ascending: false }),
+    admin
+      .from("audit_logs")
+      .select("id, created_at, metadata")
+      .eq("actor_user_id", targetUserId)
+      .eq("action", "user.login")
+      .order("created_at", { ascending: false })
+      .limit(25),
+    admin
+      .from("course_entitlements")
+      .select("course_id, source, granted_at, courses(title)")
+      .eq("user_id", targetUserId)
+      .is("revoked_at", null),
+    admin
+      .from("student_exam_attempts")
+      .select("id, score_percent, passed, submitted_at, exams(title, courses(title))")
+      .eq("user_id", targetUserId)
+      .eq("status", "submitted")
+      .order("submitted_at", { ascending: false })
+      .limit(30),
+    admin
+      .from("student_quiz_attempts")
+      .select("id, score_percent, passed, submitted_at, quizzes(title, lessons(title))")
+      .eq("user_id", targetUserId)
+      .eq("status", "submitted")
+      .order("submitted_at", { ascending: false })
+      .limit(30),
+    admin
+      .from("profiles")
+      .select("xp_total, coins_total, current_streak_days")
+      .eq("id", targetUserId)
+      .maybeSingle(),
+  ]);
 
   const roles = (roleRows ?? [])
     .map((row) => (row.roles as unknown as { name: string } | null)?.name)
@@ -271,12 +432,137 @@ export async function getUserDetail(targetUserId: string): Promise<AdminUserDeta
     };
   });
 
+  const courseIds = (entitlements ?? []).map((ent) => ent.course_id);
+  const lastOpenedByCourse = new Map<string, string>();
+  let overallLastOpened: string | null = null;
+
+  if (courseIds.length > 0) {
+    const { data: modules } = await admin
+      .from("modules")
+      .select("id, course_id")
+      .in("course_id", courseIds);
+
+    const moduleToCourse = new Map<string, string>();
+    for (const m of modules ?? []) {
+      moduleToCourse.set(m.id, m.course_id);
+    }
+    const moduleIds = Array.from(moduleToCourse.keys());
+
+    if (moduleIds.length > 0) {
+      const { data: lessons } = await admin
+        .from("lessons")
+        .select("id, module_id")
+        .in("module_id", moduleIds);
+
+      const lessonToCourse = new Map<string, string>();
+      for (const l of lessons ?? []) {
+        const cId = moduleToCourse.get(l.module_id);
+        if (cId) lessonToCourse.set(l.id, cId);
+      }
+      const lessonIds = Array.from(lessonToCourse.keys());
+
+      if (lessonIds.length > 0) {
+        const { data: progress } = await admin
+          .from("lesson_progress")
+          .select("lesson_id, last_watched_at")
+          .eq("user_id", targetUserId)
+          .in("lesson_id", lessonIds);
+
+        for (const p of progress ?? []) {
+          if (!p.last_watched_at) continue;
+          const cId = lessonToCourse.get(p.lesson_id);
+          if (cId) {
+            const current = lastOpenedByCourse.get(cId);
+            if (!current || new Date(p.last_watched_at) > new Date(current)) {
+              lastOpenedByCourse.set(cId, p.last_watched_at);
+            }
+          }
+          if (!overallLastOpened || new Date(p.last_watched_at) > new Date(overallLastOpened)) {
+            overallLastOpened = p.last_watched_at;
+          }
+        }
+      }
+    }
+  }
+
+  // Also check any general lesson_progress if overallLastOpened is still null
+  if (!overallLastOpened) {
+    const { data: latestProgress } = await admin
+      .from("lesson_progress")
+      .select("last_watched_at")
+      .eq("user_id", targetUserId)
+      .order("last_watched_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestProgress?.last_watched_at) {
+      overallLastOpened = latestProgress.last_watched_at;
+    }
+  }
+
   const coursesList: AdminUserCourse[] = (entitlements ?? []).map((ent) => ({
     course_id: ent.course_id,
     title: (ent.courses as unknown as { title: string } | null)?.title ?? "كورس",
     source: ent.source,
     granted_at: ent.granted_at,
+    last_opened_at: lastOpenedByCourse.get(ent.course_id) ?? null,
   }));
+
+  const examAttempts: AdminLatestExam[] = (examAttemptsData ?? []).map((ea) => {
+    const exam = ea.exams as { title?: string; courses?: { title?: string } | null } | null;
+    return {
+      id: ea.id,
+      title: exam?.title ?? "اختبار",
+      course_title: exam?.courses?.title ?? null,
+      score_percent: Math.round(Number(ea.score_percent) || 0),
+      passed: !!ea.passed,
+      submitted_at: ea.submitted_at ?? "",
+    };
+  });
+
+  const quizAttempts: AdminLatestQuiz[] = (quizAttemptsData ?? []).map((qa) => {
+    const quiz = qa.quizzes as { title?: string; lessons?: { title?: string } | null } | null;
+    return {
+      id: qa.id,
+      title: quiz?.title ?? "تدريب",
+      lesson_title: quiz?.lessons?.title ?? null,
+      score_percent: Math.round(Number(qa.score_percent) || 0),
+      passed: !!qa.passed,
+      submitted_at: qa.submitted_at ?? "",
+    };
+  });
+
+  const avgExam = examAttempts.length
+    ? Math.round(examAttempts.reduce((acc, cur) => acc + cur.score_percent, 0) / examAttempts.length)
+    : null;
+  const avgQuiz = quizAttempts.length
+    ? Math.round(quizAttempts.reduce((acc, cur) => acc + cur.score_percent, 0) / quizAttempts.length)
+    : null;
+
+  const xpTotal = gamificationData?.xp_total ?? 0;
+  let levelNumber = 1;
+  try {
+    const levelObj = await getLevelForXp(xpTotal);
+    if (levelObj?.level_number) levelNumber = levelObj.level_number;
+  } catch {
+    levelNumber = 1;
+  }
+
+  const academicActivity: AdminUserAcademicActivity = {
+    latest_exam: examAttempts[0] ?? null,
+    latest_quiz: quizAttempts[0] ?? null,
+    average_exam_score: avgExam,
+    average_quiz_score: avgQuiz,
+    total_exams_taken: examAttempts.length,
+    total_quizzes_taken: quizAttempts.length,
+    exam_attempts: examAttempts,
+    quiz_attempts: quizAttempts,
+    gamification: {
+      xp_total: xpTotal,
+      coins_total: gamificationData?.coins_total ?? 0,
+      current_streak_days: gamificationData?.current_streak_days ?? 0,
+      level: levelNumber,
+    },
+  };
 
   return {
     id: u.id,
@@ -285,6 +571,7 @@ export async function getUserDetail(targetUserId: string): Promise<AdminUserDeta
     first_name: profile?.first_name ?? null,
     last_name: profile?.last_name ?? null,
     phone: profile?.phone ?? null,
+    parent_phone: profile?.parent_phone ?? null,
     grade: profile?.grade ?? null,
     admin_notes: profile?.admin_notes ?? null,
     deleted_at: profile?.deleted_at ?? null,
@@ -293,11 +580,30 @@ export async function getUserDetail(targetUserId: string): Promise<AdminUserDeta
     roles,
     is_teacher: !!teacher,
     teacher_status: teacher?.status ?? null,
+    courses_count: coursesList.length,
+    last_course_opened_at: overallLastOpened,
+    latest_exam: examAttempts[0]
+      ? {
+          title: examAttempts[0].title,
+          score_percent: examAttempts[0].score_percent,
+          passed: examAttempts[0].passed,
+          submitted_at: examAttempts[0].submitted_at,
+        }
+      : null,
+    latest_quiz: quizAttempts[0]
+      ? {
+          title: quizAttempts[0].title,
+          score_percent: quizAttempts[0].score_percent,
+          passed: quizAttempts[0].passed,
+          submitted_at: quizAttempts[0].submitted_at,
+        }
+      : null,
     created_at: u.created_at,
     last_sign_in_at: u.last_sign_in_at ?? null,
     devices: deviceList,
     login_history: loginEvents,
     courses: coursesList,
+    academic_activity: academicActivity,
   };
 }
 
@@ -620,6 +926,7 @@ export async function adminUpdateUserProfile(
     first_name?: string;
     last_name?: string;
     phone?: string;
+    parent_phone?: string | null;
     grade?: string | null;
     admin_notes?: string;
     password?: string;
@@ -631,6 +938,7 @@ export async function adminUpdateUserProfile(
   if (input.first_name !== undefined) profileUpdate.first_name = input.first_name;
   if (input.last_name !== undefined) profileUpdate.last_name = input.last_name;
   if (input.phone !== undefined) profileUpdate.phone = input.phone || null;
+  if (input.parent_phone !== undefined) profileUpdate.parent_phone = input.parent_phone || null;
   if (input.grade !== undefined) profileUpdate.grade = input.grade || null;
   if (input.admin_notes !== undefined) profileUpdate.admin_notes = input.admin_notes;
 
