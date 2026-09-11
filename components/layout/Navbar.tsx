@@ -44,9 +44,9 @@ function ThemeToggle() {
   );
 }
 
-export function Navbar() {
+export function Navbar({ isLoggedIn = false }: { isLoggedIn?: boolean } = {}) {
   const router = useRouter();
-  const { data: profile } = useProfile();
+  const { data: profile } = useProfile({ enabled: isLoggedIn });
 
   const onLogout = async () => {
     const result = await postJson("/api/auth/logout", {});

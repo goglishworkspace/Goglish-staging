@@ -20,7 +20,7 @@ export function useNotifications(options?: { enabled?: boolean }) {
       const { data } = await api.get<ApiSuccess<Notification[]>>("/api/notifications");
       return data.data;
     },
-    staleTime: 15 * 1000,
+    staleTime: 60 * 1000,
     enabled: options?.enabled ?? true,
   });
 }

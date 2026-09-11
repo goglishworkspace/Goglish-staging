@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAvatarSignedUrl } from "@/lib/services/avatar.service";
+import { getAvatarsSignedUrls } from "@/lib/services/avatar.service";
 
 const LEADERBOARD_LIMIT = 50;
 
@@ -50,14 +50,19 @@ export async function GET(request: NextRequest) {
   if (profilesError) return apiError("تعذر جلب أسماء الطلاب", null, 500);
 
   const profileById = new Map(profiles?.map((p) => [p.id, p]));
-  const leaderboard = await Promise.all(
-    rows.map(async (row) => {
-      const profile = profileById.get(row.user_id);
-      const name = profile ? `${profile.first_name} ${profile.last_name}`.trim() || null : null;
-      const avatar_url = profile ? await getAvatarSignedUrl(row.user_id, profile.avatar_updated_at) : null;
-      return { ...row, name, avatar_url };
-    }),
+  const avatarUrlMap = await getAvatarsSignedUrls(
+    rows.map((row) => ({
+      userId: row.user_id,
+      avatarUpdatedAt: profileById.get(row.user_id)?.avatar_updated_at ?? null,
+    })),
   );
+
+  const leaderboard = rows.map((row) => {
+    const profile = profileById.get(row.user_id);
+    const name = profile ? `${profile.first_name} ${profile.last_name}`.trim() || null : null;
+    const avatar_url = avatarUrlMap.get(row.user_id) ?? null;
+    return { ...row, name, avatar_url };
+  });
 
   return apiSuccess(leaderboard, "تم جلب لوحة الصدارة");
 }

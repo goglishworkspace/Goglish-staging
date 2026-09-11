@@ -25,19 +25,20 @@ export type Profile = {
   personal_info_updated_at: string | null;
 };
 
-export function useProfile() {
+export function useProfile(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["profile"],
     queryFn: async () => {
       const { data } = await api.get<ApiSuccess<Profile>>("/api/profile");
       return data.data;
     },
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     // The public Navbar also calls this to detect a logged-in session -
     // for an anonymous visitor this 401s every time, and that's a
     // definitive "not logged in" answer, not a transient failure worth
     // React Query's default 3 retries.
     retry: false,
+    enabled: options?.enabled ?? true,
   });
 }
 

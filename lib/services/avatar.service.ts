@@ -48,6 +48,46 @@ export async function getAvatarSignedUrl(userId: string, avatarUpdatedAt: string
   return signed?.signedUrl ?? null;
 }
 
+export async function getAvatarsSignedUrls(
+  entries: Array<{ userId: string; avatarUpdatedAt: string | null }>,
+): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>();
+  const usersWithAvatars = entries.filter((e) => !!e.avatarUpdatedAt);
+
+  if (!usersWithAvatars.length) {
+    for (const e of entries) {
+      result.set(e.userId, null);
+    }
+    return result;
+  }
+
+  const paths = usersWithAvatars.map((e) => e.userId);
+  const admin = createAdminClient();
+  const { data: signedList, error } = await admin.storage
+    .from("avatars")
+    .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+
+  if (error || !signedList) {
+    for (const e of entries) {
+      result.set(e.userId, null);
+    }
+    return result;
+  }
+
+  const urlByPath = new Map<string, string | null>();
+  for (const item of signedList) {
+    if (item.path && item.signedUrl) {
+      urlByPath.set(item.path, item.signedUrl);
+    }
+  }
+
+  for (const e of entries) {
+    result.set(e.userId, e.avatarUpdatedAt ? (urlByPath.get(e.userId) ?? null) : null);
+  }
+
+  return result;
+}
+
 export async function deleteAvatar(userId: string): Promise<void> {
   const admin = createAdminClient();
   await admin.storage.from("avatars").remove([userId]);
