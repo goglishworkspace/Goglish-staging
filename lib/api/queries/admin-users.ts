@@ -59,6 +59,7 @@ export type AdminUserSummary = {
   last_course_opened_at: string | null;
   latest_exam?: { title: string; score_percent: number; passed: boolean; submitted_at: string } | null;
   latest_quiz?: { title: string; score_percent: number; passed: boolean; submitted_at: string } | null;
+  xp_total?: number;
 };
 
 export type AdminUserDevice = {

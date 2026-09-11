@@ -111,6 +111,7 @@ export type AdminUserSummary = {
   latest_quiz?: { title: string; score_percent: number; passed: boolean; submitted_at: string } | null;
   created_at: string;
   last_sign_in_at: string | null;
+  xp_total?: number;
 };
 
 export type AdminUserDevice = {
@@ -162,21 +163,40 @@ async function fetchProfilesSafely(ids: string[]) {
     return await selectInChunks(ids, (batch) =>
       admin
         .from("profiles")
-        .select("id, user_code, first_name, last_name, phone, parent_phone, grade, admin_notes, deleted_at, comment_banned")
+        .select("id, user_code, first_name, last_name, phone, parent_phone, grade, admin_notes, deleted_at, comment_banned, xp_total")
         .in("id", batch),
     );
   } catch {
-    const fallbackRows = await selectInChunks(ids, (batch) =>
-      admin
-        .from("profiles")
-        .select("id, first_name, last_name, phone, parent_phone, grade, deleted_at, comment_banned")
-        .in("id", batch),
-    );
-    return fallbackRows.map((r) => ({
-      ...r,
-      user_code: null,
-      admin_notes: null,
-    }));
+    try {
+      const fallbackRows = await selectInChunks(ids, (batch) =>
+        admin
+          .from("profiles")
+          .select("id, user_code, first_name, last_name, phone, grade, admin_notes, deleted_at, comment_banned, xp_total")
+          .in("id", batch),
+      );
+      return fallbackRows.map((r) => ({
+        ...r,
+        parent_phone: null,
+      }));
+    } catch {
+      try {
+        const minimalRows = await selectInChunks(ids, (batch) =>
+          admin
+            .from("profiles")
+            .select("id, first_name, last_name, phone, grade, deleted_at, comment_banned")
+            .in("id", batch),
+        );
+        return minimalRows.map((r) => ({
+          ...r,
+          user_code: null,
+          admin_notes: null,
+          parent_phone: null,
+          xp_total: 0,
+        }));
+      } catch {
+        return [];
+      }
+    }
   }
 }
 
@@ -305,6 +325,7 @@ export async function listUsers(query?: string): Promise<AdminUserSummary[]> {
       latest_quiz: latestQuizByUser.get(u.id) ?? null,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,
+      xp_total: (profile as { xp_total?: number | null })?.xp_total ?? 0,
     };
   });
 

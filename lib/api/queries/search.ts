@@ -6,11 +6,17 @@ export type CourseSearchResult = {
   id: string;
   title: string;
   slug: string;
+  description?: string | null;
   cover_image_url: string | null;
   rating_avg: number | null;
   rating_count: number | null;
   price_cents: number;
   currency: string;
+  grade_id?: string | null;
+  grade_name?: string | null;
+  grade_slug?: string | null;
+  subject_name?: string | null;
+  teachers?: { id: string; display_name: string | null }[];
 };
 
 export type TeacherSearchResult = {
@@ -22,16 +28,22 @@ export type TeacherSearchResult = {
   rating_count: number | null;
 };
 
-export function useSearchCourses(query: string) {
+export function useSearchCourses(query: string, gradeSlug?: string) {
+  const hasQuery = query.trim().length > 0;
+  const hasGrade = !!gradeSlug && gradeSlug !== "all";
+
   return useQuery({
-    queryKey: ["search-courses", query],
+    queryKey: ["search-courses", query, gradeSlug ?? "all"],
     queryFn: async () => {
       const { data } = await api.get<ApiSuccess<CourseSearchResult[]>>("/api/search/courses", {
-        params: { q: query },
+        params: {
+          ...(hasQuery ? { q: query } : {}),
+          ...(hasGrade ? { grade: gradeSlug } : {}),
+        },
       });
       return data.data;
     },
-    enabled: query.trim().length > 0,
+    enabled: hasQuery || hasGrade,
   });
 }
 
