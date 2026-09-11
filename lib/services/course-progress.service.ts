@@ -81,6 +81,7 @@ export async function getCourseProgressForStudent(
   supabase: SupabaseClient,
   studentId: string,
   prefetchedEntitlements?: CourseEntitlementWithCourse[],
+  prefetchedModules?: Array<{ id: string; course_id: string }>,
 ): Promise<CourseProgress[]> {
   let entitlements = prefetchedEntitlements;
   if (!entitlements) {
@@ -96,11 +97,15 @@ export async function getCourseProgressForStudent(
 
   const courseIds = entitlements.map((e) => e.course_id);
 
-  // 1. Batch fetch all modules for all courses in a single query
-  const { data: modules } = await supabase
-    .from("modules")
-    .select("id, course_id")
-    .in("course_id", courseIds);
+  // 1. Batch fetch all modules for all courses in a single query (or use prefetched modules)
+  let modules = prefetchedModules;
+  if (!modules) {
+    const { data } = await supabase
+      .from("modules")
+      .select("id, course_id")
+      .in("course_id", courseIds);
+    modules = (data ?? []) as Array<{ id: string; course_id: string }>;
+  }
 
   const moduleToCourse = new Map<string, string>();
   for (const m of modules ?? []) {

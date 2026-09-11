@@ -19,10 +19,13 @@ async function getEntitledCourses(
   return (data ?? []) as unknown as CourseEntitlementWithCourse[];
 }
 
-async function getModuleIdsForCourses(supabase: SupabaseClient, courseIds: string[]): Promise<string[]> {
+async function getModulesForCourses(
+  supabase: SupabaseClient,
+  courseIds: string[],
+): Promise<Array<{ id: string; course_id: string }>> {
   if (!courseIds.length) return [];
-  const { data } = await supabase.from("modules").select("id").in("course_id", courseIds);
-  return (data ?? []).map((row) => row.id as string);
+  const { data } = await supabase.from("modules").select("id, course_id").in("course_id", courseIds);
+  return (data ?? []) as Array<{ id: string; course_id: string }>;
 }
 
 async function getContinueLearning(supabase: SupabaseClient, userId: string) {
@@ -99,61 +102,31 @@ async function getUpcomingExam(supabase: SupabaseClient, userId: string, courseI
   return exams.find((exam) => !attemptedIds.has(exam.id)) ?? null;
 }
 
-/** Buckets the last 7 days of XP into a daily series (Option 3 - Day by Day: السبت، الأحد...). */
-async function getDailyProgress(supabase: SupabaseClient, userId: string) {
-  const since = new Date();
-  since.setDate(since.getDate() - 6);
-  since.setHours(0, 0, 0, 0);
-
-  const { data } = await supabase
-    .from("xp_transactions")
-    .select("amount, created_at")
-    .eq("user_id", userId)
-    .gte("created_at", since.toISOString());
-
-  const arabicDays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  const buckets = new Map<string, number>();
-  for (const row of data ?? []) {
-    const d = new Date(row.created_at as string);
-    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    buckets.set(dateKey, (buckets.get(dateKey) ?? 0) + (row.amount as number));
-  }
-
-  const days: { date: string; day_name: string; formatted_date: string; xp: number; is_today: boolean }[] = [];
+/**
+ * Fetches the last 56 days of XP transactions in a single query and computes
+ * both the daily 7-day series and the weekly 8-week series in memory,
+ * preserving exact date boundaries, Arabic day names, and ISO week keys.
+ */
+async function getXpProgress(supabase: SupabaseClient, userId: string) {
   const now = new Date();
 
-  // 6 days ago up to today (7 days continuous series)
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const isToday = i === 0;
-    const dayName = isToday ? "اليوم" : arabicDays[d.getDay()];
-    const formattedDate = `${d.getDate()}/${d.getMonth() + 1}`;
+  // Weekly range: last 8 ISO weeks (56 days)
+  const weeklySince = new Date(now);
+  weeklySince.setDate(weeklySince.getDate() - 7 * 8);
 
-    days.push({
-      date: dateKey,
-      day_name: dayName,
-      formatted_date: formattedDate,
-      xp: buckets.get(dateKey) ?? 0,
-      is_today: isToday,
-    });
-  }
-  return days;
-}
-
-/** Buckets the last 8 ISO weeks of XP into a fixed-size series - no
- * pre-aggregated weekly view exists in xp_transactions, so this is computed
- * here rather than in SQL. */
-async function getWeeklyProgress(supabase: SupabaseClient, userId: string) {
-  const since = new Date();
-  since.setDate(since.getDate() - 7 * 8);
+  // Daily range: last 6 days up to today (7-day continuous series starting at midnight)
+  const dailySince = new Date(now);
+  dailySince.setDate(dailySince.getDate() - 6);
+  dailySince.setHours(0, 0, 0, 0);
 
   const { data } = await supabase
     .from("xp_transactions")
     .select("amount, created_at")
     .eq("user_id", userId)
-    .gte("created_at", since.toISOString());
+    .gte("created_at", weeklySince.toISOString());
+
+  const arabicDays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  const dailyBuckets = new Map<string, number>();
 
   const weekKey = (iso: string) => {
     const d = new Date(iso);
@@ -162,15 +135,51 @@ async function getWeeklyProgress(supabase: SupabaseClient, userId: string) {
     const week = Math.ceil(((d.getTime() - jan4.getTime()) / dayMs + jan4.getUTCDay() + 1) / 7);
     return `${d.getUTCFullYear()}-W${week}`;
   };
+  const weeklyBuckets = new Map<string, number>();
 
-  const buckets = new Map<string, number>();
+  const dailySinceTime = dailySince.getTime();
+
   for (const row of data ?? []) {
-    const key = weekKey(row.created_at as string);
-    buckets.set(key, (buckets.get(key) ?? 0) + (row.amount as number));
+    const createdAtStr = row.created_at as string;
+    const rowDate = new Date(createdAtStr);
+    const amount = row.amount as number;
+
+    // Weekly bucket (all rows in the 56-day window)
+    const wKey = weekKey(createdAtStr);
+    weeklyBuckets.set(wKey, (weeklyBuckets.get(wKey) ?? 0) + amount);
+
+    // Daily bucket (only rows in the 7-day window)
+    if (rowDate.getTime() >= dailySinceTime) {
+      const dateKey = `${rowDate.getFullYear()}-${String(rowDate.getMonth() + 1).padStart(2, "0")}-${String(rowDate.getDate()).padStart(2, "0")}`;
+      dailyBuckets.set(dateKey, (dailyBuckets.get(dateKey) ?? 0) + amount);
+    }
   }
-  return Array.from(buckets.entries())
+
+  // Generate the 7-day daily series in original order (6 days ago -> today)
+  const daily_progress: { date: string; day_name: string; formatted_date: string; xp: number; is_today: boolean }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const isToday = i === 0;
+    const dayName = isToday ? "اليوم" : arabicDays[d.getDay()];
+    const formattedDate = `${d.getDate()}/${d.getMonth() + 1}`;
+
+    daily_progress.push({
+      date: dateKey,
+      day_name: dayName,
+      formatted_date: formattedDate,
+      xp: dailyBuckets.get(dateKey) ?? 0,
+      is_today: isToday,
+    });
+  }
+
+  // Generate the weekly series sorted chronologically
+  const weekly_progress = Array.from(weeklyBuckets.entries())
     .map(([week, xp]) => ({ week, xp }))
     .sort((a, b) => (a.week < b.week ? -1 : 1));
+
+  return { daily_progress, weekly_progress };
 }
 
 async function getMyRank(supabase: SupabaseClient, userId: string) {
@@ -211,8 +220,8 @@ export type StudentDashboard = {
   latest_lesson: Awaited<ReturnType<typeof getLatestLesson>>;
   upcoming_quiz: Awaited<ReturnType<typeof getUpcomingQuiz>>;
   upcoming_exam: Awaited<ReturnType<typeof getUpcomingExam>>;
-  daily_progress: Awaited<ReturnType<typeof getDailyProgress>>;
-  weekly_progress: Awaited<ReturnType<typeof getWeeklyProgress>>;
+  daily_progress: Awaited<ReturnType<typeof getXpProgress>>["daily_progress"];
+  weekly_progress: Awaited<ReturnType<typeof getXpProgress>>["weekly_progress"];
   course_progress: CourseProgress[];
   total_xp: number;
   coins_total: number;
@@ -228,27 +237,72 @@ export type StudentDashboard = {
 };
 
 export async function getStudentDashboard(supabase: SupabaseClient, userId: string): Promise<StudentDashboard> {
-  const [profile, entitlements, levels] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("xp_total, coins_total, current_streak_days, longest_streak_days, grade")
-      .eq("id", userId)
-      .single()
-      .then((r) => r.data),
-    getEntitledCourses(supabase, userId),
-    getAllLevels(),
-  ]);
+  // Round 1: Initiate all user-scoped independent queries immediately in parallel
+  const profilePromise = supabase
+    .from("profiles")
+    .select("xp_total, coins_total, current_streak_days, longest_streak_days, grade")
+    .eq("id", userId)
+    .single()
+    .then((r) => r.data);
+  const entitlementsPromise = getEntitledCourses(supabase, userId);
+  const levelsPromise = getAllLevels();
 
+  const continueLearningPromise = getContinueLearning(supabase, userId);
+  const xpProgressPromise = getXpProgress(supabase, userId);
+  const rankPromise = getMyRank(supabase, userId);
+  const badgesPromise = supabase
+    .from("user_badges")
+    .select("awarded_at, badges(id, code, title, description, icon)")
+    .eq("user_id", userId)
+    .order("awarded_at", { ascending: false })
+    .limit(6);
+  const certificatesPromise = supabase
+    .from("certificates")
+    .select("id, exam_id, certificate_number, issued_at, exams(title)")
+    .eq("user_id", userId)
+    .order("issued_at", { ascending: false })
+    .limit(6);
+  const notificationsPromise = supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const continueWatchingPromise = supabase
+    .from("recently_viewed_courses")
+    .select("course_id, viewed_at, courses(id, title, slug, cover_image_url)")
+    .eq("user_id", userId)
+    .order("viewed_at", { ascending: false })
+    .limit(5);
+
+  // Round 2: Await entitlements to obtain courseIds
+  const entitlements = await entitlementsPromise;
   const courseIds = entitlements.map((row) => row.course_id);
-  const moduleIds = await getModuleIdsForCourses(supabase, courseIds);
+
+  // Queries depending on courseIds
+  const modulesPromise = getModulesForCourses(supabase, courseIds);
+  const upcomingExamPromise = getUpcomingExam(supabase, userId, courseIds);
+  const recommendedCoursesPromise = profilePromise.then((p) =>
+    getRecommendedCourses(supabase, p?.grade ?? null, courseIds),
+  );
+
+  // Round 3: Await modules to obtain moduleIds and pass prefetched modules to course progress
+  const modules = await modulesPromise;
+  const moduleIds = modules.map((m) => m.id);
+
+  // Queries depending on moduleIds (reusing prefetched modules in courseProgress)
+  const latestLessonPromise = getLatestLesson(supabase, moduleIds);
+  const upcomingQuizPromise = getUpcomingQuiz(supabase, userId, moduleIds);
+  const courseProgressPromise = getCourseProgressForStudent(supabase, userId, entitlements, modules);
 
   const [
+    profile,
+    levels,
     continue_learning,
     latest_lesson,
     upcoming_quiz,
     upcoming_exam,
-    daily_progress,
-    weekly_progress,
+    xpProgress,
     course_progress,
     current_rank,
     badgesRes,
@@ -257,39 +311,20 @@ export async function getStudentDashboard(supabase: SupabaseClient, userId: stri
     continueWatchingRes,
     recommended_courses,
   ] = await Promise.all([
-    getContinueLearning(supabase, userId),
-    getLatestLesson(supabase, moduleIds),
-    getUpcomingQuiz(supabase, userId, moduleIds),
-    getUpcomingExam(supabase, userId, courseIds),
-    getDailyProgress(supabase, userId),
-    getWeeklyProgress(supabase, userId),
-    getCourseProgressForStudent(supabase, userId, entitlements),
-    getMyRank(supabase, userId),
-    supabase
-      .from("user_badges")
-      .select("awarded_at, badges(id, code, title, description, icon)")
-      .eq("user_id", userId)
-      .order("awarded_at", { ascending: false })
-      .limit(6),
-    supabase
-      .from("certificates")
-      .select("id, exam_id, certificate_number, issued_at, exams(title)")
-      .eq("user_id", userId)
-      .order("issued_at", { ascending: false })
-      .limit(6),
-    supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("recently_viewed_courses")
-      .select("course_id, viewed_at, courses(id, title, slug, cover_image_url)")
-      .eq("user_id", userId)
-      .order("viewed_at", { ascending: false })
-      .limit(5),
-    getRecommendedCourses(supabase, profile?.grade ?? null, courseIds),
+    profilePromise,
+    levelsPromise,
+    continueLearningPromise,
+    latestLessonPromise,
+    upcomingQuizPromise,
+    upcomingExamPromise,
+    xpProgressPromise,
+    courseProgressPromise,
+    rankPromise,
+    badgesPromise,
+    certificatesPromise,
+    notificationsPromise,
+    continueWatchingPromise,
+    recommendedCoursesPromise,
   ]);
 
   return {
@@ -297,8 +332,8 @@ export async function getStudentDashboard(supabase: SupabaseClient, userId: stri
     latest_lesson,
     upcoming_quiz,
     upcoming_exam,
-    daily_progress,
-    weekly_progress,
+    daily_progress: xpProgress.daily_progress,
+    weekly_progress: xpProgress.weekly_progress,
     course_progress,
     total_xp: profile?.xp_total ?? 0,
     coins_total: profile?.coins_total ?? 0,
