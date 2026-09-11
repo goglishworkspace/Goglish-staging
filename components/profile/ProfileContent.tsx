@@ -1,69 +1,26 @@
 "use client";
 
-import { useRef } from "react";
-import { toast } from "sonner";
-import { useProfile, useUploadAvatar, useDeleteAvatar, type Profile } from "@/lib/api/queries/profile";
+import { useState } from "react";
+import { UserCog, Lock, KeyRound } from "lucide-react";
+import { useProfile } from "@/lib/api/queries/profile";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { AvatarImage } from "@/components/shared/AvatarImage";
+import { StudentStatsCard } from "@/components/dashboard/StudentStatsCard";
 import { PersonalInfoSection } from "@/components/dashboard/PersonalInfoSection";
+import { ChangePasswordSection } from "@/components/dashboard/ChangePasswordSection";
 import { GradeChangeSection } from "@/components/dashboard/GradeChangeSection";
 import { DevicesSection } from "@/components/dashboard/DevicesSection";
 import { NotificationSettingsSection } from "@/components/dashboard/NotificationSettingsSection";
 import { TeacherProfileSection } from "@/components/dashboard/TeacherProfileSection";
-
-const ALLOWED_TYPES = "image/jpeg,image/png,image/webp";
-
-function apiErrorMessage(err: unknown, fallback: string) {
-  return (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
-}
-
-function AvatarSection({ profile }: { profile: Profile }) {
-  const uploadAvatar = useUploadAvatar();
-  const deleteAvatar = useDeleteAvatar();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const initials = `${profile.first_name.charAt(0)}${profile.last_name.charAt(0)}`;
-
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    uploadAvatar.mutate(file, {
-      onSuccess: () => toast.success("تم رفع الصورة الشخصية"),
-      onError: (err) => toast.error(apiErrorMessage(err, "تعذر رفع الصورة")),
-    });
-  };
-
-  const onRemove = () => {
-    deleteAvatar.mutate(undefined, {
-      onSuccess: () => toast.success("تم حذف الصورة الشخصية"),
-      onError: (err) => toast.error(apiErrorMessage(err, "تعذر حذف الصورة")),
-    });
-  };
-
-  return (
-    <div className="flex items-center gap-4">
-      <AvatarImage src={profile.avatar_url} initials={initials} alt="الصورة الشخصية" size={80} />
-      <div className="flex flex-col gap-2">
-        <input ref={fileInputRef} type="file" accept={ALLOWED_TYPES} className="hidden" onChange={onFileChange} />
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={uploadAvatar.isPending}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          {profile.avatar_url ? "تغيير الصورة" : "إضافة صورة شخصية"}
-        </Button>
-        {profile.avatar_url && (
-          <Button size="sm" variant="ghost" disabled={deleteAvatar.isPending} onClick={onRemove}>
-            حذف الصورة
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export function ProfileContent({
   showGrade = false,
@@ -73,6 +30,10 @@ export function ProfileContent({
   showTeacherProfile?: boolean;
 }) {
   const { data: profile, isLoading } = useProfile();
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const initials = profile ? `${profile.first_name.charAt(0)}${profile.last_name.charAt(0)}` : "";
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -87,40 +48,134 @@ export function ProfileContent({
 
       {!isLoading && profile && (
         <>
+          {showGrade && <StudentStatsCard profile={profile} />}
+
+          {/* User Overview Card */}
           <Card className="w-full">
             <CardContent className="flex w-full flex-col gap-6 p-6">
-              <AvatarSection profile={profile} />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
+                <div className="flex items-center gap-4">
+                  <AvatarImage src={profile.avatar_url} initials={initials} alt="الصورة الشخصية" size={72} />
+                  <div>
+                    <h2 className="text-h3 font-bold text-foreground">
+                      {profile.first_name} {profile.last_name}
+                    </h2>
+                    <p className="text-caption text-muted-foreground">{profile.email}</p>
+                  </div>
+                </div>
 
-              <div className="flex flex-wrap gap-x-8 gap-y-2">
-                <div>
-                  <p className="text-caption text-muted-foreground">الاسم</p>
-                  <p className="font-medium">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 w-fit self-start sm:self-center"
+                  onClick={() => setIsEditingInfo(true)}
+                >
+                  <UserCog className="size-4" />
+                  <span>تعديل البيانات الشخصية</span>
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
+                  <p className="text-caption text-muted-foreground">الاسم بالكامل</p>
+                  <p className="font-semibold text-foreground text-small mt-0.5">
                     {profile.first_name} {profile.last_name}
                   </p>
                 </div>
-                <div>
-                  <p className="text-caption text-muted-foreground">الإيميل</p>
-                  <p className="font-medium">{profile.email}</p>
+                <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
+                  <p className="text-caption text-muted-foreground">البريد الإلكتروني</p>
+                  <p className="font-semibold text-foreground text-small mt-0.5 truncate">{profile.email}</p>
                 </div>
-                {profile.phone && (
-                  <div>
-                    <p className="text-caption text-muted-foreground">رقم التليفون</p>
-                    <p dir="ltr" className="text-end font-medium">{profile.phone}</p>
-                  </div>
-                )}
+                <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
+                  <p className="text-caption text-muted-foreground">رقم التليفون الشخصي</p>
+                  <p dir="ltr" className="font-semibold text-foreground text-small mt-0.5 text-start">
+                    {profile.phone || "غير مسجل"}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
+                  <p className="text-caption text-muted-foreground">رقم تليفون ولي الأمر</p>
+                  <p dir="ltr" className="font-semibold text-foreground text-small mt-0.5 text-start">
+                    {profile.parent_phone || "غير مسجل"}
+                  </p>
+                </div>
                 {profile.national_id && (
-                  <div>
+                  <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
                     <p className="text-caption text-muted-foreground">الرقم القومي</p>
-                    <p dir="ltr" className="text-end font-medium">{profile.national_id}</p>
+                    <p dir="ltr" className="font-semibold text-foreground text-small mt-0.5 text-start">
+                      {profile.national_id}
+                    </p>
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {showGrade && <PersonalInfoSection profile={profile} />}
+          {/* Edit Profile Modal (Only opens when requested) */}
+          <Dialog open={isEditingInfo} onOpenChange={setIsEditingInfo}>
+            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>تعديل البيانات الشخصية</DialogTitle>
+                <DialogDescription>
+                  يمكنك تعديل اسمك ورقم هاتفك ورقم ولي أمرك.
+                </DialogDescription>
+              </DialogHeader>
+              <PersonalInfoSection
+                profile={profile}
+                inDialog
+                showParentPhone={showGrade}
+                onSuccess={() => setIsEditingInfo(false)}
+                onCancel={() => setIsEditingInfo(false)}
+              />
+            </DialogContent>
+          </Dialog>
+
           {showGrade && <GradeChangeSection profile={profile} />}
           {showTeacherProfile && <TeacherProfileSection />}
+
+          {/* Password & Security Card */}
+          <Card className="w-full">
+            <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Lock className="size-5" />
+                </div>
+                <div>
+                  <h2 className="text-h3 font-bold text-foreground">الأمان وكلمة المرور</h2>
+                  <p className="text-caption text-muted-foreground">
+                    يمكنك تغيير كلمة المرور لحسابك في أي وقت لتعزيز أمان حسابك.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 w-fit self-start sm:self-center"
+                onClick={() => setIsChangingPassword(true)}
+              >
+                <KeyRound className="size-4" />
+                <span>تغيير كلمة المرور</span>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Change Password Modal (Only opens when requested) */}
+          <Dialog open={isChangingPassword} onOpenChange={setIsChangingPassword}>
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>تغيير كلمة المرور</DialogTitle>
+                <DialogDescription>
+                  قم بتحديث كلمة المرور الخاصة بحسابك. يجب أن تتكون من 8 أحرف على الأقل.
+                </DialogDescription>
+              </DialogHeader>
+              <ChangePasswordSection
+                inDialog
+                onSuccess={() => setIsChangingPassword(false)}
+                onCancel={() => setIsChangingPassword(false)}
+              />
+            </DialogContent>
+          </Dialog>
+
           <DevicesSection />
           <NotificationSettingsSection />
         </>

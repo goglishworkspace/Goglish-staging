@@ -8,6 +8,7 @@ export type Profile = {
   last_name: string;
   phone: string | null;
   phone_verified_at: string | null;
+  parent_phone: string | null;
   national_id: string | null;
   birth_date: string;
   grade: "grade1" | "grade2" | "grade3" | null;
@@ -65,18 +66,38 @@ export function useDeleteAvatar() {
   });
 }
 
-export type UpdatePersonalInfoInput = { first_name?: string; last_name?: string; phone?: string };
+export type UpdatePersonalInfoInput = {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  parent_phone?: string;
+};
 
 export function useUpdatePersonalInfo() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: UpdatePersonalInfoInput) => {
-      const { data } = await api.patch<ApiSuccess<Pick<Profile, "first_name" | "last_name" | "phone" | "personal_info_updated_at">>>(
-        "/api/profile",
-        input,
-      );
+      const { data } = await api.patch<
+        ApiSuccess<Pick<Profile, "first_name" | "last_name" | "phone" | "parent_phone" | "personal_info_updated_at">>
+      >("/api/profile", input);
       return data.data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profile"] }),
   });
 }
+
+export type ChangePasswordInput = {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+};
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: async (input: ChangePasswordInput) => {
+      const { data } = await api.post<ApiSuccess<null>>("/api/profile/change-password", input);
+      return data;
+    },
+  });
+}
+

@@ -18,7 +18,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, first_name, last_name, phone, phone_verified_at, national_id_encrypted, birth_date, grade, xp_total, coins_total, current_streak_days, longest_streak_days, comment_banned, comment_suspended_until, comment_ban_reason, created_at, avatar_updated_at, personal_info_updated_at",
+      "id, first_name, last_name, phone, phone_verified_at, parent_phone, national_id_encrypted, birth_date, grade, xp_total, coins_total, current_streak_days, longest_streak_days, comment_banned, comment_suspended_until, comment_ban_reason, created_at, avatar_updated_at, personal_info_updated_at",
     )
     .eq("id", user.id)
     .single();
@@ -79,7 +79,7 @@ export async function PATCH(request: NextRequest) {
     .from("profiles")
     .update({ ...parsed.data, personal_info_updated_at: new Date().toISOString() })
     .eq("id", user.id)
-    .select("first_name, last_name, phone, personal_info_updated_at")
+    .select("first_name, last_name, phone, parent_phone, personal_info_updated_at")
     .single();
 
   if (error) return apiError("تعذر تحديث البيانات", null, 400);

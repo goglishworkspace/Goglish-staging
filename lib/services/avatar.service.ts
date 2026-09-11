@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyFileMagicBytes } from "./file-validation.service";
 
-const SIGNED_URL_TTL_SECONDS = 15 * 60;
+const SIGNED_URL_TTL_SECONDS = 24 * 60 * 60; // 24 hours to prevent mid-session broken images
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 

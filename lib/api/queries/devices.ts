@@ -7,6 +7,7 @@ export type Device = {
   user_agent: string | null;
   ip_address: string | null;
   is_active: boolean;
+  is_current?: boolean;
   last_active_at: string;
   created_at: string;
 };

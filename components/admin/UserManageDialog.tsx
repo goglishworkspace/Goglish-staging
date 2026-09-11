@@ -13,12 +13,14 @@ import {
   RotateCcw,
   Plus,
   Laptop,
+  Tablet,
   GraduationCap,
   Award,
   TrendingUp,
   Trophy,
   Flame,
 } from "lucide-react";
+import { parseUserAgent } from "@/lib/device-parser";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -132,6 +134,7 @@ function UserManageDialogInner({
   const [roleToAssign, setRoleToAssign] = useState("");
   const [teacherDisplayName, setTeacherDisplayName] = useState("");
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (userDetail) {
       if (userDetail.first_name !== undefined) setFirstName(userDetail.first_name ?? "");
@@ -142,6 +145,7 @@ function UserManageDialogInner({
       if (userDetail.admin_notes !== undefined) setAdminNotes(userDetail.admin_notes ?? "");
     }
   }, [userDetail]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const assignableRoles = viewerIsSuperAdmin
     ? ASSIGNABLE_ROLES
@@ -861,21 +865,32 @@ function UserManageDialogInner({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {userDetail.devices.map((device) => (
-                      <TableRow key={device.id}>
-                        <TableCell className="font-medium text-small flex items-center gap-2">
-                          <Laptop className="size-4 text-muted-foreground" />
-                          <span className="truncate max-w-[180px]" title={device.user_agent ?? ""}>
-                            {device.user_agent ?? "جهاز غير معروف"}
-                          </span>
-                        </TableCell>
-                        <TableCell dir="ltr" className="text-small text-muted-foreground">
-                          {device.ip_address ?? "-"}
-                        </TableCell>
-                        <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
-                          {formatDateTimeEn(device.last_active_at)}
-                        </TableCell>
-                        <TableCell>
+                    {userDetail.devices.map((device) => {
+                      const parsed = parseUserAgent(device.user_agent);
+                      return (
+                        <TableRow key={device.id}>
+                          <TableCell className="font-medium text-small">
+                            <div className="flex items-center gap-2.5">
+                              {parsed.type === "mobile" && <Smartphone className="size-4 text-primary shrink-0" />}
+                              {parsed.type === "tablet" && <Tablet className="size-4 text-primary shrink-0" />}
+                              {parsed.type === "desktop" && <Laptop className="size-4 text-primary shrink-0" />}
+                              <div className="min-w-0">
+                                <span className="font-semibold text-foreground block truncate" title={device.user_agent ?? ""}>
+                                  {parsed.name}
+                                </span>
+                                <span className="text-caption text-muted-foreground block truncate">
+                                  {parsed.browser}
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell dir="ltr" className="text-small text-muted-foreground">
+                            {device.ip_address ?? "-"}
+                          </TableCell>
+                          <TableCell dir="ltr" className="text-small text-muted-foreground text-start">
+                            {formatDateTimeEn(device.last_active_at)}
+                          </TableCell>
+                          <TableCell>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -887,7 +902,8 @@ function UserManageDialogInner({
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );
+                  })}
                   </TableBody>
                 </Table>
               </div>
@@ -921,7 +937,7 @@ function UserManageDialogInner({
                           {log.ip ?? "-"}
                         </TableCell>
                         <TableCell className="text-small text-muted-foreground truncate max-w-[200px]" title={log.user_agent ?? ""}>
-                          {log.user_agent ?? "-"}
+                          {log.user_agent ? `${parseUserAgent(log.user_agent).name} (${parseUserAgent(log.user_agent).browser})` : "-"}
                         </TableCell>
                       </TableRow>
                     ))}
