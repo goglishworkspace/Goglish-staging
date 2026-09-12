@@ -14,10 +14,11 @@ function ModuleLessons({
   hasAccess: boolean;
   lessons?: Lesson[];
 }) {
-  const { data: fetchedLessons, isLoading } = useModuleLessons(moduleId);
+  const hasInitial = initialLessons !== undefined;
+  const { data: fetchedLessons, isLoading } = useModuleLessons(moduleId, { enabled: !hasInitial });
   const lessons = initialLessons ?? fetchedLessons;
 
-  if (!initialLessons && isLoading) return <Skeleton className="h-16 w-full" />;
+  if (!hasInitial && isLoading) return <Skeleton className="h-16 w-full" />;
   if (!lessons?.length) return <p className="text-small text-muted-foreground">لا يوجد دروس في هذه الوحدة.</p>;
 
   return (

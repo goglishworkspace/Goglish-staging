@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, GraduationCap, Video } from "lucide-react";
+import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/server";
 import { getLessonPlayback } from "@/lib/services/lesson-playback.service";
 import { hasCourseAccess } from "@/lib/services/entitlement.service";
+import { getCourseModulesWithLessons, getCourseExams } from "@/lib/services/course-detail.service";
+import {
+  getCourseProgressSummary,
+  getLessonProgress,
+  getLessonNotes,
+} from "@/lib/services/lesson-detail.service";
 import { LessonPlayer } from "./_components/LessonPlayer";
 import { ProgressTracker } from "./_components/ProgressTracker";
 import { CourseNavSidebar } from "./_components/CourseNavSidebar";
@@ -45,12 +52,44 @@ export default async function LessonPage({
   const courseTitle = moduleData?.courses?.title ?? "الكورس";
   const moduleTitle = moduleData?.title ?? null;
 
-  const playback = await getLessonPlayback(supabase, id, user?.id ?? null);
-  const hasAccess = user && courseId ? await hasCourseAccess(supabase, user.id, courseId) : false;
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60 * 1000,
+      },
+    },
+  });
+
+  const [playback, hasAccess, modules, exams, courseProgress, lessonProgress, notes] =
+    await Promise.all([
+      getLessonPlayback(supabase, id, user?.id ?? null),
+      user && courseId ? hasCourseAccess(supabase, user.id, courseId) : Promise.resolve(false),
+      courseId ? getCourseModulesWithLessons(supabase, courseId) : Promise.resolve([]),
+      courseId ? getCourseExams(supabase, courseId) : Promise.resolve([]),
+      user && courseId ? getCourseProgressSummary(supabase, user.id, courseId) : Promise.resolve(null),
+      user ? getLessonProgress(supabase, user.id, id) : Promise.resolve(null),
+      user ? getLessonNotes(supabase, user.id, id) : Promise.resolve([]),
+    ]);
+
+  if (courseId) {
+    queryClient.setQueryData(["course-modules", courseId], modules);
+    queryClient.setQueryData(["course-exams", courseId], exams);
+    if (courseProgress) {
+      queryClient.setQueryData(["course-progress", courseId], courseProgress);
+    }
+  }
+  if (user) {
+    if (lessonProgress) {
+      queryClient.setQueryData(["lesson-progress", id], lessonProgress);
+    }
+    queryClient.setQueryData(["lesson-notes", id], notes);
+  }
+
   const isVideoPlayback = playback.kind === "youtube_protected" || playback.kind === "youtube";
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
       {/* Top Breadcrumbs & Context Header */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -149,5 +188,6 @@ export default async function LessonPage({
         )}
       </div>
     </div>
+    </HydrationBoundary>
   );
 }

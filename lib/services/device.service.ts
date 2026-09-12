@@ -1,6 +1,8 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Device } from "@/lib/api/queries/devices";
 import { DEVICE_COOKIE_NAME, computeDeviceFingerprint } from "./device-fingerprint";
 
 export { DEVICE_COOKIE_NAME, computeDeviceFingerprint };
@@ -175,3 +177,29 @@ export async function enforceSingleActiveStream(
 
   return { allowed: true };
 }
+
+export async function getUserActiveDevices(
+  supabase: SupabaseClient,
+  userId: string,
+  currentFingerprint?: string | null,
+): Promise<Device[]> {
+  const { data, error } = await supabase
+    .from("devices")
+    .select("id, device_fingerprint, user_agent, ip_address, is_active, last_active_at, created_at")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .order("last_active_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((d) => ({
+    id: d.id,
+    user_agent: d.user_agent,
+    ip_address: d.ip_address,
+    is_active: d.is_active,
+    is_current: currentFingerprint ? d.device_fingerprint === currentFingerprint : false,
+    last_active_at: d.last_active_at,
+    created_at: d.created_at,
+  }));
+}
+

@@ -42,3 +42,41 @@ export async function notifyPaymentCompleted(params: {
     });
   }
 }
+
+export async function getNotificationsForUser(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error || !data) return [];
+  return data;
+}
+
+const NOTIFICATION_CHANNELS = ["email", "sms", "push", "whatsapp"] as const;
+
+export async function getNotificationPreferencesForUser(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("notification_preferences")
+    .select("channel, enabled")
+    .eq("user_id", userId);
+
+  if (error) return { in_app: true, email: true, sms: true, push: true, whatsapp: true };
+
+  const enabledByChannel = new Map(data?.map((row) => [row.channel, row.enabled]));
+  const preferences = Object.fromEntries(
+    NOTIFICATION_CHANNELS.map((channel) => [channel, enabledByChannel.get(channel) ?? true]),
+  );
+
+  return { in_app: true, ...preferences };
+}
+
+

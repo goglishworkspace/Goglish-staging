@@ -36,7 +36,7 @@ export function useCourseModules(courseId: string) {
   });
 }
 
-export function useModuleLessons(moduleId: string) {
+export function useModuleLessons(moduleId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["module-lessons", moduleId],
     queryFn: async () => {
@@ -44,7 +44,7 @@ export function useModuleLessons(moduleId: string) {
       return data.data.sort((a, b) => a.order_index - b.order_index);
     },
     staleTime: 5 * 60 * 1000,
-    enabled: !!moduleId,
+    enabled: (options?.enabled ?? true) && !!moduleId,
   });
 }
 
