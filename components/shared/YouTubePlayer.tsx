@@ -31,10 +31,12 @@ declare global {
         el: HTMLElement,
         options: {
           videoId: string;
-          playerVars: Record<string, number>;
+          host?: string;
+          playerVars: Record<string, number | string | undefined>;
           events: {
             onReady: (event: { target: YouTubePlayerInstance }) => void;
             onStateChange: (event: { data: number }) => void;
+            onError?: (event: { data: number }) => void;
           };
         },
       ) => YouTubePlayerInstance;
@@ -251,6 +253,7 @@ export function YouTubePlayer({
       if (cancelled || !containerRef.current || !window.YT) return;
       playerRef.current = new window.YT.Player(containerRef.current, {
         videoId,
+        host: "https://www.youtube.com",
         playerVars: {
           controls: 0,
           disablekb: 1,
@@ -259,6 +262,9 @@ export function YouTubePlayer({
           rel: 0,
           iv_load_policy: 3,
           cc_load_policy: 0,
+          enablejsapi: 1,
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
+          widget_referrer: typeof window !== "undefined" ? window.location.href : undefined,
         },
         events: {
           onReady: (event) => {
@@ -290,6 +296,9 @@ export function YouTubePlayer({
             } else {
               clearHideTimer();
             }
+          },
+          onError: (event) => {
+            console.warn("[YouTubePlayer] Embed error code:", event.data);
           },
         },
       });
@@ -524,6 +533,7 @@ export function YouTubePlayer({
         className={cn(
           "absolute inset-0 h-full w-full",
           isControlsVisible ? "cursor-pointer" : "cursor-none",
+          !ready && "pointer-events-none",
         )}
       />
 
