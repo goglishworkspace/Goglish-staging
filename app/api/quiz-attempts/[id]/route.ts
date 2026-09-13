@@ -1,5 +1,6 @@
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buildCorrectAnswerSummary } from "@/lib/services/attempt-review.service";
 import type { QuestionType } from "@/lib/services/scoring.service";
 
@@ -34,7 +35,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return apiSuccess(attemptFields, "المحاولة لسه شغالة");
   }
 
-  const { data: responses } = await supabase
+  // SEC-02: answers.is_correct is protected from authenticated role.
+  // Ownership is verified above via user session & RLS.
+  // We fetch via admin client server-side only to compute the correct_answer summary
+  // for wrong questions without leaking raw answer keys to the client.
+  const admin = createAdminClient();
+  const { data: responses } = await admin
     .from("student_quiz_responses")
     .select(
       "question_id, response, is_correct, points_awarded, questions(prompt, type, points, answers(id, content, is_correct, order_index, side, match_group))",

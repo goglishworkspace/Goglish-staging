@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getVideoProvider } from "@/lib/video";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { hasCourseAccess } from "./entitlement.service";
 import { decryptNationalId } from "./national-id.service";
 
@@ -40,7 +41,7 @@ export async function getLessonPlayback(
 ): Promise<LessonPlaybackResult> {
   const { data: lesson } = await supabase
     .from("lessons")
-    .select("id, is_preview, youtube_video_id, youtube_preview_video_id, modules(course_id)")
+    .select("id, is_preview, youtube_preview_video_id, modules(course_id)")
     .eq("id", lessonId)
     .is("deleted_at", null)
     .maybeSingle();
@@ -60,12 +61,23 @@ export async function getLessonPlayback(
   // it (Section 9 - Phase 4): a permanent per-course entitlement, or an
   // active/grace-period subscription.
   if (!userId) return { kind: "login_required" };
-  if (!lesson.youtube_video_id) return { kind: "no_video" };
 
   const modules = lesson.modules as { course_id: string }[] | { course_id: string } | null;
   const courseId = Array.isArray(modules) ? modules[0]?.course_id : modules?.course_id;
   const hasAccess = courseId ? await hasCourseAccess(supabase, userId, courseId) : false;
   if (!hasAccess) return { kind: "purchase_required" };
+
+  // SEC-01: youtube_video_id is protected at DB level from direct user/anon SELECT.
+  // Access is granted exclusively through this server-side path AFTER verifying
+  // session + entitlement above.
+  const admin = createAdminClient();
+  const { data: videoData } = await admin
+    .from("lessons")
+    .select("youtube_video_id")
+    .eq("id", lessonId)
+    .maybeSingle();
+
+  if (!videoData?.youtube_video_id) return { kind: "no_video" };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -87,7 +99,7 @@ export async function getLessonPlayback(
 
   return {
     kind: "youtube_protected",
-    videoId: lesson.youtube_video_id,
+    videoId: videoData.youtube_video_id,
     watermark: {
       studentName: studentName || null,
       phone,

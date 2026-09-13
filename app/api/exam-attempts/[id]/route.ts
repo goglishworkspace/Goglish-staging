@@ -1,5 +1,6 @@
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buildCorrectAnswerSummary } from "@/lib/services/attempt-review.service";
 import type { QuestionType } from "@/lib/services/scoring.service";
 
@@ -41,7 +42,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   // per-question answer key only unlocks once solutions_visible_at has passed.
   const solutionsVisible = !exam?.solutions_visible_at || new Date(exam.solutions_visible_at) <= new Date();
 
-  const { data: responses } = await supabase
+  // SEC-02: answers.is_correct is protected from authenticated role.
+  // Ownership is verified above via user session & RLS. When solutions are visible,
+  // we fetch via admin client server-side only to compute the correct_answer summary
+  // for wrong questions without leaking raw answer keys to the client.
+  const queryClient = solutionsVisible ? createAdminClient() : supabase;
+  const { data: responses } = await queryClient
     .from("student_exam_responses")
     .select(
       solutionsVisible

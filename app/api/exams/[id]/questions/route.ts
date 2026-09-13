@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { apiSuccess, apiError } from "@/lib/api/response";
 import { zodErrorsToApiErrors } from "@/lib/api/validate";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createQuestionSchema } from "@/lib/validation/question.schemas";
 import { buildAnswerRows } from "@/lib/services/question-authoring.service";
 
@@ -16,15 +17,23 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   // Authoring view (teacher/admin) sees the answer key and hint; everyone
   // else only sees option content, never is_correct/order_index/match_group/
-  // hint (the hint is only ever revealed after a wrong answer, via the
-  // per-question check route - never handed out upfront).
-  const columns = canManage
-    ? "id, type, prompt, points, order_index, hint, deletion_requested_at, answers(id, content, is_correct, order_index, side, match_group)"
-    : "id, type, prompt, points, order_index, answers(id, content, side)";
+  // hint. SEC-02: is_correct is protected from authenticated role, so authoring
+  // query uses createAdminClient() ONLY after can_manage_question_parent check passes.
+  if (canManage) {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("questions")
+      .select("id, type, prompt, points, order_index, hint, deletion_requested_at, answers(id, content, is_correct, order_index, side, match_group)")
+      .eq("exam_id", id)
+      .order("order_index");
+
+    if (error) return apiError("تعذر جلب الأسئلة", null, 500);
+    return apiSuccess(data, "تم جلب الأسئلة");
+  }
 
   const { data, error } = await supabase
     .from("questions")
-    .select(columns)
+    .select("id, type, prompt, points, order_index, answers(id, content, side)")
     .eq("exam_id", id)
     .order("order_index");
 

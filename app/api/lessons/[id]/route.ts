@@ -17,10 +17,19 @@ const LESSON_COLUMNS =
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data, error } = await supabase
+  const isManager = user ? await canUserManageLesson(user.id, id) : false;
+  const client = isManager ? createAdminClient() : supabase;
+  const columns = isManager
+    ? `${LESSON_COLUMNS}, youtube_video_id`
+    : LESSON_COLUMNS;
+
+  const { data, error } = await client
     .from("lessons")
-    .select(LESSON_COLUMNS)
+    .select(columns)
     .eq("id", id)
     .is("deleted_at", null)
     .maybeSingle();
@@ -74,7 +83,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .from("lessons")
     .update(updatePayload)
     .eq("id", id)
-    .select(LESSON_COLUMNS)
+    .select(`${LESSON_COLUMNS}, youtube_video_id`)
     .maybeSingle();
 
   if (error) return apiError("تعذر تحديث الدرس", null, 400);

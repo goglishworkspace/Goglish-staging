@@ -14,16 +14,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const supabase = await createClient();
 
-  // youtube_video_id (the protected/paid video) and bunny_video_id are both
-  // intentionally excluded from list responses - lessons RLS only gates on
-  // published/draft status, not purchase, so including either here would let
-  // anyone who can see a published lesson's row read the real video id
-  // straight off this endpoint, bypassing the purchase check entirely.
-  // Playback only ever happens through /api/lessons/[id]/playback, which
-  // does check course access before returning it.
-  const { data, error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isManager = user ? await canUserManageModule(user.id, id) : false;
+  const client = isManager ? createAdminClient() : supabase;
+  const columns = isManager
+    ? `${LESSON_LIST_COLUMNS}, youtube_video_id`
+    : LESSON_LIST_COLUMNS;
+
+  const { data, error } = await client
     .from("lessons")
-    .select(LESSON_LIST_COLUMNS)
+    .select(columns)
     .eq("module_id", id)
     .is("deleted_at", null)
     .order("order_index");
@@ -94,7 +97,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: updatedLessons, error: fetchError } = await admin
     .from("lessons")
-    .select(LESSON_LIST_COLUMNS)
+    .select(`${LESSON_LIST_COLUMNS}, youtube_video_id`)
     .eq("module_id", moduleId)
     .is("deleted_at", null)
     .order("order_index");

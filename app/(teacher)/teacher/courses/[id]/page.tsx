@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2, Edit3, Send, DollarSign, Film, BookOpen, GraduationCap, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Edit3, Send, DollarSign, Film, BookOpen, GraduationCap, GripVertical, ChevronUp, ChevronDown, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -173,8 +173,18 @@ function EditLessonDialog({
   const updateLesson = useUpdateLesson(moduleId);
   const [title, setTitle] = useState(lesson.title);
   const [description, setDescription] = useState(lesson.description ?? "");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState(
+    lesson.youtube_video_id ? `https://www.youtube.com/watch?v=${lesson.youtube_video_id}` : ""
+  );
+  const [previewUrl, setPreviewUrl] = useState(
+    lesson.youtube_preview_video_id ? `https://www.youtube.com/watch?v=${lesson.youtube_preview_video_id}` : ""
+  );
+
+  const activeVideoId = videoUrl.trim() ? extractYouTubeId(videoUrl) : null;
+  const currentSavedVideoId = lesson.youtube_video_id;
+
+  const activePreviewId = previewUrl.trim() ? extractYouTubeId(previewUrl) : null;
+  const currentSavedPreviewId = lesson.youtube_preview_video_id;
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,12 +196,13 @@ function EditLessonDialog({
       title: string;
       description?: string;
       is_preview?: boolean;
-      youtube_preview_video_id?: string;
-      youtube_video_id?: string;
+      youtube_preview_video_id?: string | null;
+      youtube_video_id?: string | null;
     } = {
       title: title.trim(),
       description: description.trim() || undefined,
     };
+
     if (videoUrl.trim()) {
       const videoId = extractYouTubeId(videoUrl);
       if (!videoId) {
@@ -199,7 +210,10 @@ function EditLessonDialog({
         return;
       }
       input.youtube_video_id = videoId;
+    } else {
+      input.youtube_video_id = null;
     }
+
     if (previewUrl.trim()) {
       const videoId = extractYouTubeId(previewUrl);
       if (!videoId) {
@@ -208,15 +222,17 @@ function EditLessonDialog({
       }
       input.is_preview = true;
       input.youtube_preview_video_id = videoId;
+    } else {
+      input.is_preview = false;
+      input.youtube_preview_video_id = null;
     }
+
     updateLesson.mutate(
       { lessonId: lesson.id, input },
       {
         onSuccess: () => {
-          toast.success("تم تحديث الدرس");
+          toast.success("تم تحديث الدرس بنجاح");
           onOpenChange(false);
-          setVideoUrl("");
-          setPreviewUrl("");
         },
         onError: (err) => toast.error(apiErrorMessage(err, "تعذر تحديث الدرس")),
       },
@@ -225,15 +241,16 @@ function EditLessonDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>تعديل الدرس</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+        <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="lesson-title">عنوان الدرس</Label>
             <Input id="lesson-title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="lesson-description">وصف الدرس</Label>
             <Textarea
@@ -243,35 +260,125 @@ function EditLessonDialog({
               rows={2}
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="lesson-video-url">رابط فيديو الدرس (محمي)</Label>
-            <Input
-              id="lesson-video-url"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-            />
-            <p className="text-caption text-muted-foreground">
-              ارفع الفيديو على يوتيوب كـ Unlisted (غير مُدرج) وحط اللينك هنا. الفيديو ده مش هيتشاهد غير للطلاب اللي
-              اشتروا الكورس. سيبه فاضي لو مش عايز تغيّره.
+
+          {/* فيديو الدرس المحمي */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="lesson-video-url" className="font-medium">
+                رابط فيديو الدرس (محمي)
+              </Label>
+              {currentSavedVideoId ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-caption font-semibold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="size-3.5" />
+                  فيديو محفوظ بالفعل
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-caption font-semibold text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="size-3.5" />
+                  لم يتم إضافة فيديو بعد
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                id="lesson-video-url"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="font-mono text-small"
+                dir="ltr"
+              />
+              {activeVideoId && (
+                <a
+                  href={`https://www.youtube.com/watch?v=${activeVideoId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-small font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+                  title="فتح الفيديو في تبويب جديد للتأكد منه"
+                >
+                  <ExternalLink className="size-3.5 text-primary" />
+                  معاينة
+                </a>
+              )}
+              {videoUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive text-caption px-2"
+                  onClick={() => setVideoUrl("")}
+                  title="مسح الرابط"
+                >
+                  مسح
+                </Button>
+              )}
+            </div>
+
+            <p className="text-caption text-muted-foreground leading-relaxed">
+              ارفع الفيديو على يوتيوب كـ <strong>Unlisted (غير مُدرج)</strong> وضع رابطه هنا. الفيديو محمي ولن يظهر إلا للطلاب المشتركين.
             </p>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="lesson-preview-url">رابط فيديو معاينة مجاني (اختياري) {lesson.is_preview && "(محدّث حاليًا)"}</Label>
-            <Input
-              id="lesson-preview-url"
-              value={previewUrl}
-              onChange={(e) => setPreviewUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-            />
-            <p className="text-caption text-muted-foreground">
-              فيديو تشويقي قصير يقدر أي حد يشوفه من غير ما يشترك. سيبه فاضي لو مش عايز تضيف/تغيّر معاينة.
+
+          {/* فيديو المعاينة المجاني */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="lesson-preview-url" className="font-medium">
+                رابط فيديو معاينة مجاني (اختياري)
+              </Label>
+              {currentSavedPreviewId ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary">
+                  <CheckCircle2 className="size-3.5" />
+                  معاينة مجانية مفعلة
+                </span>
+              ) : null}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                id="lesson-preview-url"
+                value={previewUrl}
+                onChange={(e) => setPreviewUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="font-mono text-small"
+                dir="ltr"
+              />
+              {activePreviewId && (
+                <a
+                  href={`https://www.youtube.com/watch?v=${activePreviewId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-small font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+                  title="فتح فيديو المعاينة في تبويب جديد"
+                >
+                  <ExternalLink className="size-3.5 text-primary" />
+                  معاينة
+                </a>
+              )}
+              {previewUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive text-caption px-2"
+                  onClick={() => setPreviewUrl("")}
+                  title="مسح الرابط"
+                >
+                  مسح
+                </Button>
+              )}
+            </div>
+
+            <p className="text-caption text-muted-foreground leading-relaxed">
+              فيديو تشويقي قصير يقدر أي شخص يشوفه بدون اشتراك للتعرف على أسلوب الشرح.
             </p>
           </div>
+
           <LessonResourcesSection lessonId={lesson.id} />
+
           <DialogFooter>
             <Button type="submit" disabled={updateLesson.isPending}>
-              حفظ
+              حفظ التعديلات
             </Button>
           </DialogFooter>
         </form>
@@ -639,6 +746,17 @@ function LessonRow({
             <div className="flex flex-wrap items-center gap-2 mt-0.5">
               {lesson.rejection_reason && <p className="text-caption text-destructive">السبب: {lesson.rejection_reason}</p>}
               {lesson.is_preview && <span className="text-caption text-primary font-medium">معاينة مجانية</span>}
+              {lesson.youtube_video_id ? (
+                <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-caption font-medium text-emerald-600 dark:text-emerald-400">
+                  <Film className="size-3" />
+                  فيديو محمي مرفوع
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-caption font-medium text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="size-3" />
+                  بدون فيديو
+                </span>
+              )}
             </div>
           </div>
         </div>

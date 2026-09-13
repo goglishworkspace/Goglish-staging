@@ -13,5 +13,8 @@ export const createLessonSchema = z.object({
 });
 export type CreateLessonInput = z.infer<typeof createLessonSchema>;
 
-export const updateLessonSchema = createLessonSchema.partial();
+export const updateLessonSchema = createLessonSchema.partial().extend({
+  youtube_video_id: z.string().trim().nullable().optional(),
+  youtube_preview_video_id: z.string().trim().nullable().optional(),
+});
 export type UpdateLessonInput = z.infer<typeof updateLessonSchema>;

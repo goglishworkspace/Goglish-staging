@@ -22,6 +22,8 @@ export type Lesson = {
   submitted_at?: string | null;
   rejection_reason?: string | null;
   deletion_requested_at?: string | null;
+  youtube_video_id?: string | null;
+  youtube_preview_video_id?: string | null;
 };
 
 export function useCourseModules(courseId: string) {
@@ -93,8 +95,8 @@ export function useUpdateLesson(moduleId: string) {
         title?: string;
         description?: string;
         is_preview?: boolean;
-        youtube_preview_video_id?: string;
-        youtube_video_id?: string;
+        youtube_preview_video_id?: string | null;
+        youtube_video_id?: string | null;
       };
     }) => {
       const { data } = await api.patch<ApiSuccess<Lesson>>(`/api/lessons/${lessonId}`, input);
