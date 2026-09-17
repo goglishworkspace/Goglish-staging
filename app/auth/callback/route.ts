@@ -23,25 +23,52 @@ function isSafeRedirect(url: string): boolean {
   );
 }
 
+function getOrigin(request: NextRequest): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  return request.nextUrl.origin;
+}
+
 /**
  * Shared landing point for Supabase's PKCE email links and OAuth redirects (Google).
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const explicitNext = request.nextUrl.searchParams.get("next");
+  const errorParam = request.nextUrl.searchParams.get("error");
+  const errorDescription = request.nextUrl.searchParams.get("error_description");
+  const origin = getOrigin(request);
+
+  if (errorParam || errorDescription) {
+    console.error("[OAuth Callback Error from provider]:", { errorParam, errorDescription });
+    const redirectUrl = new URL("/login", origin);
+    redirectUrl.searchParams.set("error", errorParam || "oauth_failed");
+    if (errorDescription) {
+      redirectUrl.searchParams.set("desc", errorDescription);
+    }
+    return NextResponse.redirect(redirectUrl);
+  }
 
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=auth_callback_failed", request.url));
+    console.error("[OAuth Callback Error]: missing code parameter");
+    return NextResponse.redirect(new URL("/login?error=no_code", origin));
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return NextResponse.redirect(new URL("/login?error=auth_callback_failed", request.url));
+    console.error("[OAuth Callback Error]: exchangeCodeForSession failed:", error);
+    const redirectUrl = new URL("/login", origin);
+    redirectUrl.searchParams.set("error", "exchange_failed");
+    redirectUrl.searchParams.set("desc", error.message);
+    return NextResponse.redirect(redirectUrl);
   }
 
   if (explicitNext && isSafeRedirect(explicitNext)) {
-    return NextResponse.redirect(new URL(explicitNext, request.url));
+    return NextResponse.redirect(new URL(explicitNext, origin));
   }
 
   const {
@@ -49,7 +76,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", origin));
   }
 
   // Register device for OAuth session
@@ -71,13 +98,13 @@ export async function GET(request: NextRequest) {
       const result = await completeSelfRegistrationIfNeeded(user.id, metadata);
       if (!result.ok) {
         await supabase.auth.signOut({ scope: "local" });
-        return NextResponse.redirect(new URL(`/register?error=${result.reason}`, request.url));
+        return NextResponse.redirect(new URL(`/register?error=${result.reason}`, origin));
       }
     } catch (error) {
       console.error("completeSelfRegistrationIfNeeded failed in auth callback", error);
     }
     const destination = metadata.role_type === "student" ? "/student/choose-grade" : "/parent/dashboard";
-    return NextResponse.redirect(new URL(destination, request.url));
+    return NextResponse.redirect(new URL(destination, origin));
   }
 
   // Handle OAuth (Google) registration/login
@@ -101,20 +128,20 @@ export async function GET(request: NextRequest) {
 
     // 1. Staff and existing privileged roles always go directly to their dashboards
     if (roles.includes("super_admin") || roles.includes("admin")) {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      return NextResponse.redirect(new URL("/admin/dashboard", origin));
     }
     if (roles.includes("teacher")) {
-      return NextResponse.redirect(new URL("/teacher/dashboard", request.url));
+      return NextResponse.redirect(new URL("/teacher/dashboard", origin));
     }
 
     // 2. Existing parent with phone goes directly to parent dashboard
     if (roles.includes("parent") && profile?.phone) {
-      return NextResponse.redirect(new URL("/parent/dashboard", request.url));
+      return NextResponse.redirect(new URL("/parent/dashboard", origin));
     }
 
     // 3. Existing student with complete details goes directly to student dashboard
     if (roles.includes("student") && profile?.first_name && profile?.phone && profile?.grade) {
-      return NextResponse.redirect(new URL("/student/dashboard", request.url));
+      return NextResponse.redirect(new URL("/student/dashboard", origin));
     }
 
     // 4. If avatar is available in Google metadata and not set in profile, save it
@@ -124,9 +151,9 @@ export async function GET(request: NextRequest) {
     }
 
     // 5. New or incomplete user -> Send to onboarding step (choose role -> enter details)
-    return NextResponse.redirect(new URL("/complete-profile", request.url));
+    return NextResponse.redirect(new URL("/complete-profile", origin));
   } catch (err) {
     console.error("OAuth callback sync error", err);
-    return NextResponse.redirect(new URL("/complete-profile", request.url));
+    return NextResponse.redirect(new URL("/complete-profile", origin));
   }
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -27,13 +27,33 @@ type LoginResult =
   | { status: "ok"; user_id: string }
   | { status: "device_limit_confirm"; oldest_device: { user_agent: string | null; last_active_at: string } };
 
-export default function LoginPage() {
+function LoginFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pendingValues, setPendingValues] = useState<LoginInput | null>(null);
   const [oldestDevice, setOldestDevice] = useState<{ user_agent: string | null; last_active_at: string } | null>(
     null,
   );
   const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    const error = searchParams.get("error");
+    const desc = searchParams.get("desc");
+    if (!error) return;
+
+    if (error === "auth_callback_failed" || error === "no_code") {
+      toast.error("تعذر إكمال تسجيل الدخول بواسطة جوجل، حاول مرة أخرى.");
+    } else if (error === "access_denied") {
+      toast.error("تم إلغاء تسجيل الدخول بواسطة جوجل.");
+    } else if (error === "exchange_failed") {
+      toast.error(`فشل تأكيد جلسة الدخول: ${desc || "حاول مرة أخرى"}`);
+    } else if (error === "unsupported_provider") {
+      toast.error("تسجيل الدخول بواسطة جوجل غير مفعّل في Supabase.");
+    } else {
+      toast.error(desc || "حدث خطأ أثناء تسجيل الدخول، حاول مجدداً.");
+    }
+  }, [searchParams]);
+
   const {
     register,
     handleSubmit,
@@ -123,5 +143,13 @@ export default function LoginPage() {
         </DialogContent>
       </Dialog>
     </AuthCard>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">جاري التحميل...</div>}>
+      <LoginFormContent />
+    </Suspense>
   );
 }

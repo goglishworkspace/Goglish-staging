@@ -83,39 +83,79 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     let { data, error } = await supabase.auth.signInWithPassword(parsed.data);
 
-    // If login failed because email wasn't confirmed, auto-confirm the user and retry
-    if (
-      error &&
-      (error.message?.toLowerCase().includes("email not confirmed") ||
-        error.code === "email_not_confirmed")
-    ) {
-      try {
-        const admin = createAdminClient();
-        let page = 1;
-        const perPage = 1000;
-        let targetUserId: string | null = null;
-        while (true) {
-          const { data: authList, error: listErr } = await admin.auth.admin.listUsers({ page, perPage });
-          if (listErr || !authList?.users?.length) break;
-          const found = authList.users.find(
-            (u) => u.email?.toLowerCase() === parsed.data.email.toLowerCase(),
-          );
-          if (found) {
-            targetUserId = found.id;
-            break;
-          }
-          if (authList.users.length < perPage) break;
-          page++;
-        }
+    if (error) {
+      console.error("[Login] Supabase signInWithPassword error details:", {
+        code: error.code,
+        status: error.status,
+        name: error.name,
+        message: error.message,
+      });
 
-        if (targetUserId) {
-          await admin.auth.admin.updateUserById(targetUserId, { email_confirm: true });
-          const retryResult = await supabase.auth.signInWithPassword(parsed.data);
-          data = retryResult.data;
-          error = retryResult.error;
+      const errorMsg = error.message?.toLowerCase() || "";
+
+      // 1. Check if Email Provider is completely disabled in Supabase dashboard
+      if (
+        errorMsg.includes("email logins are not enabled") ||
+        errorMsg.includes("email provider is disabled") ||
+        errorMsg.includes("provider is disabled") ||
+        error.code === "email_provider_disabled"
+      ) {
+        return apiError(
+          "تسجيل الدخول بالبريد معطل في إعدادات Supabase (Email Provider Disabled). يرجى تفعيل Enable Email Provider من لوحة تحكم سوبابيز.",
+          null,
+          503,
+        );
+      }
+
+      // 2. Check if login failed because email wasn't confirmed.
+      // Note: If "Prevent User Enumeration" is enabled in Supabase Auth settings,
+      // GoTrue returns "invalid login credentials" instead of "email not confirmed".
+      // We inspect unconfirmed status in auth.users and auto-confirm if needed, then retry.
+      const couldBeUnconfirmed =
+        errorMsg.includes("email not confirmed") ||
+        error.code === "email_not_confirmed" ||
+        errorMsg.includes("invalid login credentials") ||
+        error.code === "invalid_credentials";
+
+      if (couldBeUnconfirmed) {
+        try {
+          const admin = createAdminClient();
+          let page = 1;
+          const perPage = 1000;
+          let targetUserId: string | null = null;
+          let needsConfirm = false;
+
+          while (page <= 5) {
+            const { data: authList, error: listErr } = await admin.auth.admin.listUsers({ page, perPage });
+            if (listErr || !authList?.users?.length) break;
+            const found = authList.users.find(
+              (u) => u.email?.toLowerCase() === parsed.data.email.toLowerCase(),
+            );
+            if (found) {
+              targetUserId = found.id;
+              needsConfirm = !found.email_confirmed_at;
+              break;
+            }
+            if (authList.users.length < perPage) break;
+            page++;
+          }
+
+          if (targetUserId && needsConfirm) {
+            console.log(`[Login] Auto-confirming unconfirmed user ${targetUserId} (${parsed.data.email})`);
+            await admin.auth.admin.updateUserById(targetUserId, { email_confirm: true });
+            const retryResult = await supabase.auth.signInWithPassword(parsed.data);
+            data = retryResult.data;
+            error = retryResult.error;
+            if (error) {
+              console.error("[Login] Retry after auto-confirm failed:", {
+                code: error.code,
+                message: error.message,
+              });
+            }
+          }
+        } catch (confirmErr) {
+          console.error("[Login] Auto-confirm on login failed:", confirmErr);
         }
-      } catch (confirmErr) {
-        console.error("Auto-confirm on login failed:", confirmErr);
       }
     }
 
