@@ -54,8 +54,19 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const deviceId = request.cookies.get(DEVICE_COOKIE_NAME)?.value;
-  if (user && deviceId) {
+  if (user) {
+    let deviceId = request.cookies.get(DEVICE_COOKIE_NAME)?.value;
+    if (!deviceId) {
+      deviceId = crypto.randomUUID();
+      response.cookies.set(DEVICE_COOKIE_NAME, deviceId, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 365,
+        path: "/",
+      });
+    }
+
     const fingerprint = await computeDeviceFingerprint(deviceId, request.headers.get("user-agent"));
     const { data: device } = await supabase
       .from("devices")
@@ -64,11 +75,24 @@ export async function updateSession(request: NextRequest) {
       .eq("device_fingerprint", fingerprint)
       .maybeSingle();
 
-    if (device && !device.is_active) {
-      // scope: "local" - this must only end *this* device's session, not
-      // every device the user is logged into (signOut()'s "global" default) -
-      // the whole point is the other, still-active device(s) keep working.
-      await supabase.auth.signOut({ scope: "local" });
+    if (device) {
+      if (!device.is_active) {
+        // scope: "local" - this must only end *this* device's session, not
+        // every device the user is logged into (signOut()'s "global" default) -
+        // the whole point is the other, still-active device(s) keep working.
+        await supabase.auth.signOut({ scope: "local" });
+      }
+    } else {
+      // SEC-07: Unregistered device or cookie stripped: fail-closed if 2-device limit is reached
+      const { count } = await supabase
+        .from("devices")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+
+      if ((count ?? 0) >= 2) {
+        await supabase.auth.signOut({ scope: "local" });
+      }
     }
   }
 

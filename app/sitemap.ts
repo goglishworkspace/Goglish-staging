@@ -10,13 +10,6 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
  * used to generate URLs Google would 404 on for every single course and
  * subject in the sitemap. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const admin = createAdminClient();
-  const [{ data: courses }, { data: subjects }, { data: teachers }] = await Promise.all([
-    admin.from("courses").select("id, updated_at").eq("status", "published").is("deleted_at", null),
-    admin.from("subjects").select("id"),
-    admin.from("teachers").select("id").eq("status", "active"),
-  ]);
-
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: SITE_URL, lastModified: new Date(), changeFrequency: "daily", priority: 1 },
     // Phase 10 gamification/social-proof pages - public, crawlable, and
@@ -28,6 +21,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/teachers`, changeFrequency: "weekly", priority: 0.5 },
     { url: `${SITE_URL}/courses`, changeFrequency: "daily", priority: 0.7 },
   ];
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return staticRoutes;
+  }
+
+  try {
+    const admin = createAdminClient();
+    const [{ data: courses }, { data: subjects }, { data: teachers }] = await Promise.all([
+      admin.from("courses").select("id, updated_at").eq("status", "published").is("deleted_at", null),
+      admin.from("subjects").select("id"),
+      admin.from("teachers").select("id").eq("status", "active"),
+    ]);
 
   const courseRoutes: MetadataRoute.Sitemap = (courses ?? []).map((course) => ({
     url: `${SITE_URL}/courses/${course.id}`,
@@ -48,5 +53,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...courseRoutes, ...subjectRoutes, ...teacherRoutes];
+    return [...staticRoutes, ...courseRoutes, ...subjectRoutes, ...teacherRoutes];
+  } catch {
+    return staticRoutes;
+  }
 }

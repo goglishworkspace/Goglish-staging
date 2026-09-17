@@ -44,6 +44,45 @@ export function CourseDetailView({ id }: { id: string }) {
   const [enrolling, setEnrolling] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"gateway" | "manual_wallet">("gateway");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    subtotal_cents: number;
+    discount_cents: number;
+    total_cents: number;
+    currency: string;
+  } | null>(null);
+
+  const onApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast.error("يرجى إدخال كود الخصم أولاً");
+      return;
+    }
+    setValidatingCoupon(true);
+    try {
+      const res = await postJson<{
+        subtotal_cents: number;
+        discount_cents: number;
+        total_cents: number;
+        currency: string;
+      }>("/api/coupons/validate", {
+        item_type: "course",
+        item_id: id,
+        code: couponCode.trim(),
+      });
+      if (!res.success) {
+        toast.error(res.message);
+        setAppliedCoupon(null);
+        return;
+      }
+      setAppliedCoupon(res.data);
+      toast.success("تم تطبيق كود الخصم بنجاح 🎉");
+    } catch {
+      toast.error("تعذر التحقق من كود الخصم");
+      setAppliedCoupon(null);
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
 
   const { data: profile } = useProfile();
   const { data: wishlistCourses } = useWishlistCourses({ enabled: !!profile });
@@ -105,7 +144,7 @@ export function CourseDetailView({ id }: { id: string }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 pb-24 lg:pb-8 sm:px-6 lg:px-8">
       {isLoading || !course ? (
         <div className="flex flex-col gap-6">
           <Skeleton className="h-44 w-full rounded-2xl" />
@@ -257,36 +296,78 @@ export function CourseDetailView({ id }: { id: string }) {
                       {/* Price Tag */}
                       <div className="flex items-baseline justify-between border-b border-border/60 pb-4">
                         <span className="text-small font-medium text-muted-foreground">سعر الكورس:</span>
-                        <div className="text-start">
-                          <span className="text-3xl font-black text-primary">
-                            {course.price_cents === 0
-                              ? "مجاني"
-                              : (course.price_cents / 100).toLocaleString("ar-EG")}
-                          </span>
-                          {course.price_cents > 0 && (
-                            <span className="ms-1.5 text-small font-bold text-foreground">
-                              {course.currency}
+                        {appliedCoupon ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs line-through text-muted-foreground">
+                                {(course.price_cents / 100).toLocaleString("ar-EG")} {course.currency}
+                              </span>
+                              <Badge variant="secondary" className="text-[10px] font-bold text-green-700 bg-green-500/15">
+                                خصم {(appliedCoupon.discount_cents / 100).toLocaleString("ar-EG")} {appliedCoupon.currency}
+                              </Badge>
+                            </div>
+                            <div className="text-start">
+                              <span className="text-3xl font-black text-primary">
+                                {appliedCoupon.total_cents === 0
+                                  ? "مجاني"
+                                  : (appliedCoupon.total_cents / 100).toLocaleString("ar-EG")}
+                              </span>
+                              <span className="ms-1.5 text-small font-bold text-foreground">
+                                {appliedCoupon.currency}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-start">
+                            <span className="text-3xl font-black text-primary">
+                              {course.price_cents === 0
+                                ? "مجاني"
+                                : (course.price_cents / 100).toLocaleString("ar-EG")}
                             </span>
-                          )}
-                        </div>
+                            {course.price_cents > 0 && (
+                              <span className="ms-1.5 text-small font-bold text-foreground">
+                                {course.currency}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Coupon Input */}
+                      {/* UX-013: Coupon Input with explicit apply button */}
                       {course.price_cents > 0 && (
                         <div className="flex flex-col gap-1.5">
                           <label htmlFor="coupon" className="text-caption font-medium text-muted-foreground">
                             كود الخصم (اختياري)
                           </label>
-                          <div className="relative">
-                            <Tag className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                              id="coupon"
-                              value={couponCode}
-                              onChange={(e) => setCouponCode(e.target.value)}
-                              placeholder="أدخل كود الخصم إذا كان لديك..."
-                              className="ps-9 font-mono"
-                            />
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Tag className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                              <Input
+                                id="coupon"
+                                value={couponCode}
+                                onChange={(e) => {
+                                  setCouponCode(e.target.value);
+                                  if (appliedCoupon) setAppliedCoupon(null);
+                                }}
+                                placeholder="أدخل كود الخصم..."
+                                className="ps-9 font-mono"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={validatingCoupon || !couponCode.trim()}
+                              onClick={onApplyCoupon}
+                              className="shrink-0 border-primary/50 text-foreground hover:bg-primary/10 font-bold"
+                            >
+                              {validatingCoupon ? "جاري الفحص..." : "تطبيق"}
+                            </Button>
                           </div>
+                          {appliedCoupon && (
+                            <p className="text-xs text-green-600 font-semibold mt-1">
+                              ✓ تم تطبيق الخصم بنجاح!
+                            </p>
+                          )}
                         </div>
                       )}
 
@@ -374,6 +455,39 @@ export function CourseDetailView({ id }: { id: string }) {
               </div>
             </div>
           </div>
+
+          {/* UX-014: Mobile Sticky Action Bar */}
+          {!course.has_access && course.price_cents > 0 && (
+            <div className="fixed bottom-0 inset-x-0 z-40 border-t border-border/80 bg-background/95 p-3.5 backdrop-blur-lg shadow-2xl lg:hidden">
+              <div className="mx-auto flex max-w-lg items-center justify-between gap-4">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-medium text-muted-foreground">السعر المطلوب:</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-primary">
+                      {appliedCoupon
+                        ? (appliedCoupon.total_cents / 100).toLocaleString("ar-EG")
+                        : (course.price_cents / 100).toLocaleString("ar-EG")}
+                    </span>
+                    <span className="text-xs font-bold text-foreground">
+                      {appliedCoupon ? appliedCoupon.currency : course.currency}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  size="default"
+                  className="flex-1 py-5 text-sm font-bold shadow-lg shadow-primary/20"
+                  disabled={enrolling}
+                  onClick={onEnroll}
+                >
+                  {enrolling
+                    ? "جاري التحضير..."
+                    : paymentMethod === "manual_wallet"
+                      ? "متابعة للدفع 📲"
+                      : "اشترك الآن 🚀"}
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

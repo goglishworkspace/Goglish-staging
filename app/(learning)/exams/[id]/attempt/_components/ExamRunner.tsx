@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { QuestionRenderer, type ResponseValue } from "@/app/(learning)/_components/QuestionRenderer";
 import { AttemptReview, AttemptNextAction, type ReviewedResponse } from "@/app/(learning)/_components/AttemptReview";
 import type { PublicQuestion } from "@/lib/services/attempt-start.service";
+import { AlertTriangle } from "lucide-react";
 
 type StartData = {
   already_submitted?: boolean;
@@ -29,11 +30,14 @@ export function ExamRunner() {
   const [review, setReview] = useState<ReviewData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const [graceSecondsLeft, setGraceSecondsLeft] = useState<number | null>(null);
+  const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 
   const responsesRef = useRef(responses);
   const attemptIdRef = useRef<string | null>(null);
   const submittedRef = useRef(false);
   const startRequestedRef = useRef(false);
+  const graceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     responsesRef.current = responses;
@@ -141,7 +145,32 @@ export function ExamRunner() {
     if (state !== "taking") return;
 
     const onVisibilityChange = () => {
-      if (document.hidden) forceSubmit();
+      if (document.hidden) {
+        // UX-006: 10-second grace period before forced submission
+        if (graceTimerRef.current) return;
+        let remaining = 10;
+        setGraceSecondsLeft(remaining);
+        graceTimerRef.current = setInterval(() => {
+          remaining -= 1;
+          if (remaining <= 0) {
+            if (graceTimerRef.current) {
+              clearInterval(graceTimerRef.current);
+              graceTimerRef.current = null;
+            }
+            setGraceSecondsLeft(null);
+            forceSubmit();
+          } else {
+            setGraceSecondsLeft(remaining);
+          }
+        }, 1000);
+      } else {
+        // Returned to tab before grace period expired
+        if (graceTimerRef.current) {
+          clearInterval(graceTimerRef.current);
+          graceTimerRef.current = null;
+        }
+        setGraceSecondsLeft(null);
+      }
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -153,6 +182,10 @@ export function ExamRunner() {
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("beforeunload", onBeforeUnload);
+      if (graceTimerRef.current) {
+        clearInterval(graceTimerRef.current);
+        graceTimerRef.current = null;
+      }
     };
   }, [state, forceSubmit]);
 
@@ -194,10 +227,92 @@ export function ExamRunner() {
 
   if (!attempt?.questions) return null;
 
+  const totalQuestions = attempt.questions.length;
+  const answeredCount = attempt.questions.filter((q) => {
+    const val = responses[q.id];
+    if (val === undefined || val === null || val === "") return false;
+    if (Array.isArray(val) && val.length === 0) return false;
+    return true;
+  }).length;
+  const unansweredCount = Math.max(totalQuestions - answeredCount, 0);
+
   return (
     <div className="flex flex-col gap-6">
-      <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-        تحذير: لو سبت الصفحة أو غيّرت التاب، الامتحان هيتسلّم تلقائياً فوراً - محاولة واحدة بس مسموحة.
+      {/* UX-006: Grace Period Warning Modal */}
+      {graceSecondsLeft !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border-2 border-destructive bg-card p-6 text-center shadow-2xl animate-in fade-in">
+            <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-9 animate-bounce" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground">تحذير: لقد غادرت شاشة الامتحان!</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              يرجى العودة فوراً إلى نافذة الامتحان. سيتم التسليم التلقائي وإنهاء المحاولة خلال:
+            </p>
+            <div className="my-4 text-5xl font-black text-destructive">
+              {graceSecondsLeft}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              العودة إلى التاب ستلغي التسليم التلقائي وتسمح لك بإكمال الامتحان.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* UX-007: Submit Confirmation Dialog */}
+      {showConfirmSubmit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in">
+            <h3 className="text-xl font-bold text-foreground">تأكيد تسليم الامتحان</h3>
+            <div className="my-5 space-y-2.5 text-sm">
+              <div className="flex justify-between rounded-xl bg-muted/50 p-3">
+                <span className="text-muted-foreground">إجمالي الأسئلة:</span>
+                <span className="font-bold">{totalQuestions}</span>
+              </div>
+              <div className="flex justify-between rounded-xl bg-green-500/10 p-3 text-green-700 dark:text-green-400">
+                <span>الأسئلة التي تم حلها:</span>
+                <span className="font-bold">{answeredCount}</span>
+              </div>
+              {unansweredCount > 0 ? (
+                <div className="flex justify-between rounded-xl bg-destructive/10 p-3 text-destructive font-medium">
+                  <span>أسئلة لم تقم بحلها:</span>
+                  <span className="font-bold">{unansweredCount}</span>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-primary/10 p-2.5 text-center text-xs font-semibold text-primary">
+                  ممتاز! قمت بالإجابة على جميع الأسئلة 🎉
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mb-6">
+              تنبيه: بعد الضغط على تأكيد لن تتمكن من تعديل أي إجابة.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmSubmit(false)}
+                className="flex-1 rounded-xl border border-border py-2.5 text-sm font-semibold hover:bg-muted cursor-pointer transition-colors"
+              >
+                العودة للحل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmSubmit(false);
+                  submit();
+                }}
+                disabled={state === "submitting"}
+                className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-md transition-all"
+              >
+                تأكيد التسليم
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive font-medium">
+        تنبيه: مغادرة شاشة الامتحان تمنحك مهلة 10 ثوانٍ فقط للعودة قبل التسليم التلقائي - محاولة واحدة فقط مسموحة لكل امتحان.
       </p>
       {remainingSeconds !== null && (
         <p className="text-sm font-semibold">
@@ -205,8 +320,8 @@ export function ExamRunner() {
         </p>
       )}
       {attempt.questions.map((q, index) => (
-        <div key={q.id} className="rounded-xl border border-black/15 p-4 dark:border-white/15">
-          <p className="mb-3 font-semibold">
+        <div key={q.id} className="rounded-xl border border-border p-5 bg-card shadow-sm">
+          <p className="mb-3 font-semibold text-foreground">
             {index + 1}. {q.prompt}
           </p>
           <QuestionRenderer
@@ -217,11 +332,11 @@ export function ExamRunner() {
         </div>
       ))}
       <button
-        onClick={submit}
+        onClick={() => setShowConfirmSubmit(true)}
         disabled={state !== "taking"}
-        className="rounded-lg bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--color-secondary)] disabled:opacity-60"
+        className="rounded-xl bg-primary px-5 py-3 text-base font-bold text-primary-foreground shadow-lg hover:bg-primary/90 disabled:opacity-60 cursor-pointer transition-all"
       >
-        تسليم
+        تسليم الامتحان
       </button>
     </div>
   );

@@ -54,10 +54,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (q && matchedSubjectIds.length > 0) {
-    query = query.or(`title.ilike.%${q}%,subject_id.in.(${matchedSubjectIds.join(",")})`);
-  } else if (q) {
-    query = query.ilike("title", `%${q}%`);
+  // SEC-08: Sanitize q to prevent PostgREST .or() filter syntax injection
+  const safeQ = q ? q.replace(/[,()]/g, "\\$&") : "";
+  if (safeQ && matchedSubjectIds.length > 0) {
+    query = query.or(`title.ilike.%${safeQ}%,subject_id.in.(${matchedSubjectIds.join(",")})`);
+  } else if (safeQ) {
+    query = query.ilike("title", `%${safeQ}%`);
   }
 
   const { data, error } = await query.limit(30);
