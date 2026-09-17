@@ -97,52 +97,36 @@ function RegisterPageContent() {
   };
 
   const onSubmit = async (values: SelfRegisterInput) => {
+    const res = await postJson<{ user_id: string }>("/api/auth/register/self", values);
+    if (!res.success) {
+      toast.error(res.message || "تعذر إنشاء الحساب");
+      return;
+    }
+
+    // Auto sign-in immediately with the newly created and confirmed credentials
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email: values.email,
       password: values.password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: {
-          role_type: values.role_type,
-          first_name: values.first_name,
-          last_name: values.last_name,
-          phone: values.phone || undefined,
-          parent_phone: values.role_type === "student" ? (values.parent_phone || undefined) : undefined,
-          national_id: values.role_type === "student" ? values.national_id : undefined,
-          grade: values.role_type === "student" ? values.grade : undefined,
-          child_national_id: values.role_type === "parent" ? values.child_national_id : undefined,
-          child_phone: values.role_type === "parent" ? values.child_phone : undefined,
-        },
-      },
     });
 
-    if (error && error.code !== "user_already_exists") {
-      toast.error(error.message);
+    if (signInError) {
+      toast.success("تم إنشاء حسابك بنجاح! يرجى تسجيل الدخول.");
+      router.push("/login");
       return;
     }
 
-    if (error?.code === "user_already_exists" || data.user?.identities?.length === 0) {
-      toast.error("الإيميل ده مسجّل بحساب بالفعل - سجّل دخول أو استخدم نسيت الباسورد");
-      return;
-    }
+    toast.success("تم إنشاء حسابك وتسجيل الدخول بنجاح! مرحباً بك 🎓");
 
-    if (data.session) {
-      await postJson("/api/auth/register/sync-metadata", {
-        email: values.email,
-        role_type: values.role_type,
-        first_name: values.first_name,
-        last_name: values.last_name,
-        phone: values.phone || undefined,
-        parent_phone: values.role_type === "student" ? (values.parent_phone || undefined) : undefined,
-        national_id: values.role_type === "student" ? values.national_id : undefined,
-        grade: values.role_type === "student" ? values.grade : undefined,
-        child_national_id: values.role_type === "parent" ? values.child_national_id : undefined,
-        child_phone: values.role_type === "parent" ? values.child_phone : undefined,
-      }).catch(() => {});
+    if (values.role_type === "student") {
+      if (values.grade) {
+        router.push("/student/dashboard");
+      } else {
+        router.push("/student/choose-grade");
+      }
+    } else {
+      router.push("/parent/dashboard");
     }
-
-    router.push(`/verify-email?email=${encodeURIComponent(values.email)}`);
   };
 
   return (

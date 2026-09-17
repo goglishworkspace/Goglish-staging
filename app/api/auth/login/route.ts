@@ -81,7 +81,43 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient();
-    const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
+    let { data, error } = await supabase.auth.signInWithPassword(parsed.data);
+
+    // If login failed because email wasn't confirmed, auto-confirm the user and retry
+    if (
+      error &&
+      (error.message?.toLowerCase().includes("email not confirmed") ||
+        error.code === "email_not_confirmed")
+    ) {
+      try {
+        const admin = createAdminClient();
+        let page = 1;
+        const perPage = 1000;
+        let targetUserId: string | null = null;
+        while (true) {
+          const { data: authList, error: listErr } = await admin.auth.admin.listUsers({ page, perPage });
+          if (listErr || !authList?.users?.length) break;
+          const found = authList.users.find(
+            (u) => u.email?.toLowerCase() === parsed.data.email.toLowerCase(),
+          );
+          if (found) {
+            targetUserId = found.id;
+            break;
+          }
+          if (authList.users.length < perPage) break;
+          page++;
+        }
+
+        if (targetUserId) {
+          await admin.auth.admin.updateUserById(targetUserId, { email_confirm: true });
+          const retryResult = await supabase.auth.signInWithPassword(parsed.data);
+          data = retryResult.data;
+          error = retryResult.error;
+        }
+      } catch (confirmErr) {
+        console.error("Auto-confirm on login failed:", confirmErr);
+      }
+    }
 
     if (error || !data.user) {
       return apiError("الإيميل أو الباسورد غير صحيح", null, 401);
